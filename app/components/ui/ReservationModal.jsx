@@ -26,7 +26,6 @@ import {
 import api from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
 
-// Types de durée disponibles avec icônes Lucide
 const DURATION_TYPES = {
   hourly: { label: "À l'heure", icon: Hourglass, duration: "1 heure" },
   "2_hours": { label: "2 heures", icon: Hourglass, duration: "2 heures" },
@@ -36,6 +35,9 @@ const DURATION_TYPES = {
   monthly: { label: "Mois", icon: CalendarDays, duration: "30 jours" },
   yearly: { label: "Année", icon: Star, duration: "365 jours" },
 };
+
+// Réduction étudiant disponible uniquement pour ces formules
+const STUDENT_DISCOUNT_ALLOWED = ["weekly", "monthly", "yearly"];
 
 export default function ReservationModal({
   isOpen,
@@ -67,7 +69,6 @@ export default function ReservationModal({
   const [availability, setAvailability] = useState([]);
   const [selectedPriceOption, setSelectedPriceOption] = useState(null);
 
-  // Charger les options de prix et disponibilités
   useEffect(() => {
     if (isOpen && spaceId) {
       fetchPricingOptions();
@@ -111,7 +112,6 @@ export default function ReservationModal({
     }
   }, [isOpen, isAuthenticated, user]);
 
-  // Calculer le prix total quand les options changent
   useEffect(() => {
     calculateTotalPrice();
   }, [
@@ -130,7 +130,6 @@ export default function ReservationModal({
       setPricingOptions(response.data.pricing_options || []);
       setAvailability(response.data.availability || []);
 
-      // Sélectionner l'option par défaut (daily si disponible)
       const defaultOption = response.data.pricing_options?.find(
         (opt) => opt.duration_type === "daily",
       );
@@ -157,7 +156,6 @@ export default function ReservationModal({
 
     let total = selectedPriceOption.price;
 
-    // Pour les réservations longues durée, calculer selon le nombre de jours
     if (
       ["weekly", "monthly", "yearly"].includes(formData.duration_type) &&
       formData.start_date &&
@@ -181,8 +179,7 @@ export default function ReservationModal({
 
     setOriginalPrice(total);
 
-    // Appliquer réduction étudiant (-20%)
-    if (formData.student_discount) {
+    if (formData.student_discount && STUDENT_DISCOUNT_ALLOWED.includes(formData.duration_type)) {
       total = total * 0.8;
     }
 
@@ -199,10 +196,17 @@ export default function ReservationModal({
 
   const handleDurationChange = (option) => {
     setSelectedPriceOption(option);
-    setFormData((prev) => ({ ...prev, duration_type: option.duration_type }));
+    const isLong = STUDENT_DISCOUNT_ALLOWED.includes(option.duration_type);
+    setFormData((prev) => ({
+      ...prev,
+      duration_type: option.duration_type,
+      // Désactiver la réduction si la formule ne la supporte pas
+      student_discount: isLong ? prev.student_discount : false,
+    }));
   };
 
   const handleDiscountToggle = () => {
+    if (!STUDENT_DISCOUNT_ALLOWED.includes(formData.duration_type)) return;
     setFormData((prev) => ({
       ...prev,
       student_discount: !prev.student_discount,
@@ -238,14 +242,6 @@ export default function ReservationModal({
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  };
-
-  const getAvailableSlotsForDate = (date) => {
-    const availabilityForDate = availability.find((a) => a.date === date);
-    return (
-      availabilityForDate?.available_slots?.filter((slot) => slot.available) ||
-      []
-    );
   };
 
   const getTimeSlots = () => {
@@ -314,12 +310,14 @@ export default function ReservationModal({
     return Icon ? <Icon size={20} /> : <Calendar size={20} />;
   };
 
+  const isDiscountAllowed = STUDENT_DISCOUNT_ALLOWED.includes(formData.duration_type);
+
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
       <div className="bg-gradient-to-br from-[#0A0A0F] to-[#12121A] border border-white/10 rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl max-h-[90vh] overflow-y-auto">
-        {/* Header avec gradient */}
+        {/* Header */}
         <div className="relative h-32 bg-gradient-to-r from-[#F4620A] to-[#C040E0] sticky top-0">
           <button
             onClick={onClose}
@@ -342,7 +340,7 @@ export default function ReservationModal({
 
         {step === 1 ? (
           <form onSubmit={handleSubmit} className="p-6 space-y-6">
-            {/* Résumé de l'espace */}
+            {/* Résumé espace */}
             <div className="bg-gradient-to-r from-[#F4620A]/10 to-[#C040E0]/10 rounded-xl p-4 border border-[#F4620A]/20">
               <h4 className="text-white font-semibold mb-2 flex items-center gap-2">
                 <Building2 size={18} className="text-[#F4620A]" />
@@ -366,7 +364,7 @@ export default function ReservationModal({
               </div>
             </div>
 
-            {/* Sélection de la durée */}
+            {/* Sélection durée */}
             <div>
               <label className="block text-white text-sm font-medium mb-3 flex items-center gap-2">
                 <Clock size={16} className="text-[#F4620A]" />
@@ -401,7 +399,7 @@ export default function ReservationModal({
               </div>
             </div>
 
-            {/* Section Date selon le type de durée */}
+            {/* Date */}
             {["hourly", "2_hours", "half_day", "daily"].includes(
               formData.duration_type,
             ) ? (
@@ -431,14 +429,15 @@ export default function ReservationModal({
                     <Clock size={16} className="text-[#F4620A]" />
                     Heure de début *
                   </label>
+                  {/* ── FIX: bg-[#1A1A2E] pour que le texte soit visible ── */}
                   <select
                     name="start_time"
                     value={formData.start_time}
                     onChange={handleChange}
-                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#F4620A] transition-all"
+                    className="w-full px-4 py-3 bg-[#1A1A2E] border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#F4620A] transition-all appearance-none cursor-pointer"
                   >
                     {getTimeSlots().map((slot) => (
-                      <option key={slot} value={slot}>
+                      <option key={slot} value={slot} className="bg-[#1A1A2E] text-white">
                         {slot}
                       </option>
                     ))}
@@ -481,13 +480,24 @@ export default function ReservationModal({
               </div>
             )}
 
-            {/* Réduction étudiant */}
-            <div className="bg-white/5 rounded-xl p-4">
-              <label className="flex items-center justify-between cursor-pointer">
+            {/* ── Réduction étudiant ── */}
+            <div className={`rounded-xl p-4 transition-all ${
+              isDiscountAllowed
+                ? "bg-white/5"
+                : "bg-white/[0.02] opacity-50 cursor-not-allowed"
+            }`}>
+              <label className={`flex items-center justify-between ${isDiscountAllowed ? "cursor-pointer" : "cursor-not-allowed"}`}>
                 <div className="flex items-center gap-3">
-                  <GraduationCap size={24} className="text-[#F4620A]" />
+                  <GraduationCap size={24} className={isDiscountAllowed ? "text-[#F4620A]" : "text-[#A0A0B8]"} />
                   <div>
-                    <p className="text-white font-medium">Réduction étudiant</p>
+                    <p className="text-white font-medium flex items-center gap-2">
+                      Réduction étudiant
+                      {!isDiscountAllowed && (
+                        <span className="text-[10px] bg-white/10 text-[#A0A0B8] px-2 py-0.5 rounded-full">
+                          Semaine / Mois / An uniquement
+                        </span>
+                      )}
+                    </p>
                     <p className="text-[#A0A0B8] text-xs">
                       -20% sur votre réservation
                     </p>
@@ -498,14 +508,21 @@ export default function ReservationModal({
                     type="checkbox"
                     checked={formData.student_discount}
                     onChange={handleDiscountToggle}
+                    disabled={!isDiscountAllowed}
                     className="sr-only peer"
                   />
-                  <div className="w-11 h-6 bg-white/10 rounded-full peer peer-checked:bg-gradient-to-r from-[#F4620A] to-[#C040E0] peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+                  <div className={`w-11 h-6 rounded-full peer transition-all
+                    ${isDiscountAllowed
+                      ? "bg-white/10 peer-checked:bg-gradient-to-r peer-checked:from-[#F4620A] peer-checked:to-[#C040E0]"
+                      : "bg-white/5"
+                    }
+                    after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full`}
+                  />
                 </div>
               </label>
             </div>
 
-            {/* Informations client */}
+            {/* Coordonnées */}
             <div className="space-y-4">
               <h4 className="text-white font-semibold flex items-center gap-2">
                 <Users size={18} className="text-[#F4620A]" />
@@ -527,9 +544,7 @@ export default function ReservationModal({
                   className={`w-full px-4 py-3 bg-white/5 border rounded-xl text-white placeholder-[#A0A0B8] focus:outline-none focus:border-[#F4620A] transition-all ${errors.guest_name ? "border-red-500" : "border-white/10"} ${isAuthenticated ? "opacity-60 cursor-not-allowed" : ""}`}
                 />
                 {errors.guest_name && (
-                  <p className="text-red-400 text-xs mt-1">
-                    {errors.guest_name}
-                  </p>
+                  <p className="text-red-400 text-xs mt-1">{errors.guest_name}</p>
                 )}
               </div>
 
@@ -548,9 +563,7 @@ export default function ReservationModal({
                   className={`w-full px-4 py-3 bg-white/5 border rounded-xl text-white placeholder-[#A0A0B8] focus:outline-none focus:border-[#F4620A] transition-all ${errors.guest_email ? "border-red-500" : "border-white/10"} ${isAuthenticated ? "opacity-60 cursor-not-allowed" : ""}`}
                 />
                 {errors.guest_email && (
-                  <p className="text-red-400 text-xs mt-1">
-                    {errors.guest_email}
-                  </p>
+                  <p className="text-red-400 text-xs mt-1">{errors.guest_email}</p>
                 )}
               </div>
 
@@ -568,9 +581,7 @@ export default function ReservationModal({
                   className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-[#A0A0B8] focus:outline-none focus:border-[#F4620A] transition-all"
                 />
                 {errors.guest_phone && (
-                  <p className="text-red-400 text-xs mt-1">
-                    {errors.guest_phone}
-                  </p>
+                  <p className="text-red-400 text-xs mt-1">{errors.guest_phone}</p>
                 )}
               </div>
 
@@ -590,7 +601,7 @@ export default function ReservationModal({
               </div>
             </div>
 
-            {/* Récapitulatif et prix */}
+            {/* Récapitulatif */}
             <div className="bg-gradient-to-r from-[#F4620A]/20 to-[#C040E0]/20 rounded-xl p-4 border border-[#F4620A]/30">
               <h4 className="text-white font-semibold mb-3 flex items-center gap-2">
                 <Tag size={18} className="text-[#F4620A]" />
@@ -610,11 +621,9 @@ export default function ReservationModal({
                     {selectedPriceOption?.price} MAD
                   </span>
                 </div>
-                {formData.student_discount && (
+                {formData.student_discount && isDiscountAllowed && (
                   <div className="flex justify-between">
-                    <span className="text-green-400">
-                      Réduction étudiant (-20%)
-                    </span>
+                    <span className="text-green-400">Réduction étudiant (-20%)</span>
                     <span className="text-green-400">
                       -{Math.round(originalPrice - totalPrice)} MAD
                     </span>
@@ -657,7 +666,6 @@ export default function ReservationModal({
             </div>
           </form>
         ) : (
-          // Étape 2: Confirmation
           <div className="p-6 text-center">
             <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6 animate-bounce">
               <CheckCircle size={40} className="text-green-400" />
@@ -667,8 +675,7 @@ export default function ReservationModal({
               Réservation confirmée !
             </h4>
             <p className="text-[#A0A0B8] mb-6">
-              Votre réservation a été créée avec succès. Un email de
-              confirmation a été envoyé à {formData.guest_email}.
+              Votre réservation a été créée avec succès. Un email de confirmation a été envoyé à {formData.guest_email}.
             </p>
 
             {bookingResult && (
@@ -696,36 +703,24 @@ export default function ReservationModal({
                       <div className="flex justify-between">
                         <span className="text-[#A0A0B8]">Date</span>
                         <span className="text-white">
-                          {new Date(formData.booking_date).toLocaleDateString(
-                            "fr-FR",
-                          )}
+                          {new Date(formData.booking_date).toLocaleDateString("fr-FR")}
                         </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-[#A0A0B8]">Horaire</span>
-                        <span className="text-white">
-                          {formData.start_time}
-                        </span>
+                        <span className="text-white">{formData.start_time}</span>
                       </div>
                     </>
                   ) : (
-                    <>
-                      <div className="flex justify-between">
-                        <span className="text-[#A0A0B8]">Période</span>
-                        <span className="text-white">
-                          Du{" "}
-                          {new Date(formData.start_date).toLocaleDateString(
-                            "fr-FR",
-                          )}{" "}
-                          au{" "}
-                          {new Date(formData.end_date).toLocaleDateString(
-                            "fr-FR",
-                          )}
-                        </span>
-                      </div>
-                    </>
+                    <div className="flex justify-between">
+                      <span className="text-[#A0A0B8]">Période</span>
+                      <span className="text-white">
+                        Du {new Date(formData.start_date).toLocaleDateString("fr-FR")} au{" "}
+                        {new Date(formData.end_date).toLocaleDateString("fr-FR")}
+                      </span>
+                    </div>
                   )}
-                  {formData.student_discount && (
+                  {formData.student_discount && isDiscountAllowed && (
                     <div className="flex justify-between">
                       <span className="text-green-400">Réduction étudiant</span>
                       <span className="text-green-400">-20%</span>
