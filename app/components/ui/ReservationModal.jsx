@@ -55,7 +55,7 @@ export default function ReservationModal({
     booking_date: "",
     start_date: "",
     end_date: "",
-    start_time: "09:00",
+    start_time: "08:30",
     notes: "",
     student_discount: false,
   });
