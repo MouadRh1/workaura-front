@@ -1,18 +1,24 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
+  generateBuildId: async () => {
+    return 'build-' + Date.now()
+  },
   images: {
-    domains: [
-      'mintcream-mink-168421.hostingersite.com',
-      'antiquewhite-elephant-610472.hostingersite.com', // ← ton domaine actuel
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'mintcream-mink-168421.hostingersite.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'antiquewhite-elephant-610472.hostingersite.com',
+      },
     ],
   },
   reactStrictMode: true,
-  swcMinify: true,
-  trailingSlash: false,
-  // Désactiver Turbopack explicitement
-  experimental: {
-    turbo: undefined,
+  turbopack: {
+    root: './',
   },
 }
 
