@@ -54,7 +54,7 @@ export default function AboutSection() {
             </div>
 
             {/* CTA Link */}
-            <a
+            {/* <a
               href="#"
               className="inline-flex items-center gap-2 text-[#F4620A] hover:text-[#9B1FD4] transition-colors font-medium group"
             >
@@ -62,7 +62,7 @@ export default function AboutSection() {
               <span className="group-hover:translate-x-1 transition-transform">
                 →
               </span>
-            </a>
+            </a> */}
           </div>
 
           {/* Right Column - Image */}

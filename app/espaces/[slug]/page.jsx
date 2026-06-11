@@ -138,7 +138,7 @@ export default function SpaceDetailPage() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [lightboxOpen]);
+  }, [lightboxOpen, prevImage, nextImage]);
 
   const typeLabel =
     {
@@ -313,6 +313,7 @@ export default function SpaceDetailPage() {
                   </div>
                 )}
 
+                {/* Prix commenté temporairement 
                 {space.price && (
                   <div className="flex items-center gap-3 text-[#A0A0B8] bg-white/5 rounded-xl p-3">
                     <Clock size={20} className="text-[#F4620A]" />
@@ -324,7 +325,7 @@ export default function SpaceDetailPage() {
                       </p>
                     </div>
                   </div>
-                )}
+                ) */}
 
                 <div className="flex items-center gap-3 text-[#A0A0B8] bg-white/5 rounded-xl p-3">
                   <Calendar size={20} className="text-[#F4620A]" />
@@ -430,6 +431,7 @@ export default function SpaceDetailPage() {
             <div className="sticky top-24 space-y-6">
               {/* Carte de réservation */}
               <div className="bg-gradient-to-br from-white/5 to-white/10 backdrop-blur-xl rounded-2xl border border-white/10 p-6">
+                {/* Prix commenté temporairement
                 <div className="text-center mb-6">
                   <p className="text-[#A0A0B8] text-sm mb-2">
                     Prix à partir de
@@ -438,11 +440,11 @@ export default function SpaceDetailPage() {
                     {space.price} MAD
                   </p>
                   <p className="text-[#A0A0B8] text-xs">par jour</p>
-                </div>
+                </div> */}
 
                 <div className="space-y-4 mb-6">
-                  {/* Sélecteur de date */}
-                  {/* <div>
+                  {/* Sélecteur de date commenté temporairement
+                  <div>
                     <label className="block text-white text-sm font-medium mb-2">
                       📅 Sélectionnez une date
                     </label>
@@ -455,6 +457,7 @@ export default function SpaceDetailPage() {
                     />
                   </div> */}
 
+                  {/* Bloc de prix commenté temporairement
                   <div className="bg-white/5 rounded-xl p-4">
                     <div className="flex justify-between mb-2">
                       <span className="text-[#A0A0B8]">Prix journalier</span>
@@ -467,7 +470,7 @@ export default function SpaceDetailPage() {
                         {space.price} MAD
                       </span>
                     </div>
-                  </div>
+                  </div> */}
                 </div>
 
                 <Button
@@ -476,8 +479,8 @@ export default function SpaceDetailPage() {
                   className="w-full py-3 text-base"
                 >
                   {space.status === "available"
-                    ? "📝 Réserver maintenant"
-                    : "❌ Indisponible"}
+                    ? "Réserver maintenant"
+                    : "Indisponible"}
                 </Button>
 
                 <div className="mt-4 text-center">
@@ -552,12 +555,13 @@ export default function SpaceDetailPage() {
         </div>
       )}
 
-      {/* Modal de réservation */}
+      {/* Modal de réservation avec spaceType */}
       <ReservationModal
         isOpen={isReservationModalOpen}
         onClose={() => setIsReservationModalOpen(false)}
         spaceId={space.id}
         spaceName={space.name}
+        spaceType={space.type}  // ← AJOUTÉ : passage du type d'espace
         spacePrice={space.price}
       />
     </div>

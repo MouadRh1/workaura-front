@@ -221,12 +221,12 @@ export default function EspacesPage() {
                           <span>{space.capacity}</span>
                         </div>
                       )}
-                      <div className="flex items-baseline gap-1">
+                      {/* <div className="flex items-baseline gap-1">
                         <span className="text-2xl font-bold text-[#F4620A]">
                           {space.price} MAD
                         </span>
                         <span className="text-[#A0A0B8] text-sm">/jour</span>
-                      </div>
+                      </div> */}
                     </div>
 
                     {/* CTA Button */}

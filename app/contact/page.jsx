@@ -1,3 +1,4 @@
+// app/contact/page.jsx
 "use client";
 import { useState } from "react";
 import {
@@ -11,9 +12,9 @@ import {
   AlertTriangle,
   Loader2,
   MessageSquare,
+  FileText,
 } from "lucide-react";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+import api from "../lib/api";
 
 function Pill({ icon: Icon, children }) {
   return (
@@ -50,6 +51,7 @@ export default function ContactPage() {
     prenom: "",
     email: "",
     telephone: "",
+    message: "",
     conditions: false,
   });
   const [status, setStatus] = useState(null);
@@ -79,26 +81,14 @@ export default function ContactPage() {
     setStatus(null);
 
     try {
-      const response = await fetch(`${API_URL}/contacts`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify(formData),
+      const response = await api.post("/contacts", {
+        nom: formData.nom,
+        prenom: formData.prenom,
+        email: formData.email,
+        telephone: formData.telephone,
+        message: formData.message,
+        conditions: formData.conditions,
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        if (response.status === 422 && data.errors) {
-          setErrors(data.errors);
-          setStatus("validation_error");
-        } else {
-          setStatus("error");
-        }
-        return;
-      }
 
       setStatus("success");
       setFormData({
@@ -106,11 +96,19 @@ export default function ContactPage() {
         prenom: "",
         email: "",
         telephone: "",
+        message: "",
         conditions: false,
       });
       setTimeout(() => setStatus(null), 6000);
-    } catch {
-      setStatus("error");
+    } catch (error) {
+      console.error("Erreur:", error);
+      
+      if (error.response?.status === 422 && error.response?.data?.errors) {
+        setErrors(error.response.data.errors);
+        setStatus("validation_error");
+      } else {
+        setStatus("error");
+      }
     } finally {
       setLoading(false);
     }
@@ -126,6 +124,9 @@ export default function ContactPage() {
 
   const inputBase =
     "w-full bg-[#1A1A26] border border-[#2A2A3E] rounded-xl px-4 py-3 text-white text-sm placeholder-[#A0A0B8] focus:outline-none focus:border-[#F4620A] transition-colors duration-200";
+
+  const textareaBase =
+    "w-full bg-[#1A1A26] border border-[#2A2A3E] rounded-xl px-4 py-3 text-white text-sm placeholder-[#A0A0B8] focus:outline-none focus:border-[#F4620A] transition-colors duration-200 resize-none";
 
   return (
     <div className="min-h-screen bg-[#0A0A0F] text-white pb-0">
@@ -290,10 +291,10 @@ export default function ContactPage() {
                   {fieldError("email")}
                 </div>
 
-                {/* Téléphone */}
+                {/* Téléphone - OBLIGATOIRE */}
                 <div>
                   <label className="block text-[#A0A0B8] text-xs font-semibold uppercase tracking-wider mb-2">
-                    Téléphone
+                    Téléphone <span className="text-[#F4620A]">*</span>
                   </label>
                   <div className="relative">
                     <Phone
@@ -305,11 +306,35 @@ export default function ContactPage() {
                       name="telephone"
                       value={formData.telephone}
                       onChange={handleChange}
+                      required
                       placeholder="+212 6 XX XX XX XX"
                       className={`${inputBase} pl-9 ${errors.telephone ? "border-red-500/60" : ""}`}
                     />
                   </div>
                   {fieldError("telephone")}
+                </div>
+
+                {/* Message - Zone de texte */}
+                <div>
+                  <label className="block text-[#A0A0B8] text-xs font-semibold uppercase tracking-wider mb-2">
+                    Message <span className="text-[#F4620A]">*</span>
+                  </label>
+                  <div className="relative">
+                    <FileText
+                      size={15}
+                      className="absolute left-3 top-3 text-[#F4620A] opacity-60 pointer-events-none"
+                    />
+                    <textarea
+                      name="message"
+                      value={formData.message}
+                      onChange={handleChange}
+                      required
+                      rows={4}
+                      placeholder="Décrivez votre projet ou votre question..."
+                      className={`${textareaBase} pl-9 ${errors.message ? "border-red-500/60" : ""}`}
+                    />
+                  </div>
+                  {fieldError("message")}
                 </div>
 
                 {/* Checkbox */}
@@ -373,8 +398,7 @@ export default function ContactPage() {
                         Message envoyé avec succès !
                       </p>
                       <p className="text-emerald-400/70 text-xs mt-0.5">
-                        Un email de confirmation vous a été adressé. Nous vous
-                        répondrons sous 24h.
+                        Nous vous répondrons dans les plus brefs délais.
                       </p>
                     </div>
                   </div>
@@ -401,6 +425,18 @@ export default function ContactPage() {
                     <p className="text-yellow-400 text-sm">
                       Veuillez accepter les conditions générales avant
                       d'envoyer.
+                    </p>
+                  </div>
+                )}
+
+                {status === "validation_error" && (
+                  <div className="flex items-center gap-3 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl">
+                    <AlertTriangle
+                      size={18}
+                      className="text-yellow-400 shrink-0"
+                    />
+                    <p className="text-yellow-400 text-sm">
+                      Veuillez corriger les erreurs dans le formulaire.
                     </p>
                   </div>
                 )}
@@ -443,4 +479,4 @@ export default function ContactPage() {
       </section>
     </div>
   );
-}
+} 

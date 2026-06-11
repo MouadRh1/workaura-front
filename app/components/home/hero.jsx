@@ -14,7 +14,7 @@ export default function Hero() {
           playsInline
           className="absolute top-0 left-0 w-full h-full object-cover"
         >
-          <source src="/videos/bgvideo.mp4" type="video/mp4" />
+          <source src="/videos/hero.mkv" type="video/mp4" />
         </video>
         
         {/* Dark Overlay for better text readability */}
@@ -44,7 +44,7 @@ export default function Hero() {
 
         {/* Subtitle */}
         <p className="max-w-[580px] mx-auto text-base md:text-lg text-white/80 mb-10 drop-shadow-lg">
-          Bureaux privés, espaces coworking & salles de réunion premium à Témara.
+          Bureaux privés, espaces coworking, salles de formation & salles de réunion premium à Témara.
           Rejoignez une communauté d'entrepreneurs ambitieux.
         </p>
 
