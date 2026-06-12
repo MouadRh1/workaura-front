@@ -95,7 +95,6 @@ function ContactManager() {
     setSelectedContact(contact);
     setIsModalOpen(true);
     
-    // Marquer comme lu si ce n'est pas déjà fait
     if (contact.status === "pending") {
       try {
         await api.get(`/admin/contacts/${contact.id}`);
@@ -177,7 +176,6 @@ function ContactManager() {
         <p className="text-[#A0A0B8]">Gérez les messages de vos visiteurs</p>
       </div>
 
-      {/* Statistiques */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
         <div className="bg-white/5 rounded-xl p-4 text-center">
           <p className="text-2xl font-bold text-white">{stats.total}</p>
@@ -201,7 +199,6 @@ function ContactManager() {
         </div>
       </div>
 
-      {/* Barre de recherche */}
       <div className="mb-6">
         <div className="relative">
           <input
@@ -217,7 +214,6 @@ function ContactManager() {
         </div>
       </div>
 
-      {/* Liste des messages */}
       {filteredContacts.length === 0 ? (
         <div className="bg-white/5 rounded-2xl p-12 text-center">
           <MessageSquare size={48} className="mx-auto text-[#A0A0B8] mb-3" />
@@ -288,7 +284,6 @@ function ContactManager() {
         </div>
       )}
 
-      {/* Modal Détail message */}
       {isModalOpen && selectedContact && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-[#0A0A0F] border border-white/10 rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
@@ -573,19 +568,6 @@ export default function AdminDashboard() {
     <div className="min-h-screen bg-[#0A0A0F]">
       <aside className={`fixed top-0 left-0 h-full bg-[#0A0A0F]/95 backdrop-blur-xl border-r border-white/10 transition-all duration-300 z-40 ${isSidebarOpen ? "w-64" : "w-20"}`}>
         <div className="flex flex-col h-full pt-20">
-          {/* <div className="p-6 border-b border-white/10">
-            <div className={`flex items-center gap-3 ${!isSidebarOpen && "justify-center"}`}>
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#F4620A] to-[#9B1FD4] flex items-center justify-center flex-shrink-0">
-                <span className="text-white font-bold text-lg">WA</span>
-              </div>
-              {isSidebarOpen && (
-                <div className="flex flex-col">
-                  <span className="text-white font-bold text-sm">WORKAURA</span>
-                  <span className="text-[#A0A0B8] text-xs">Admin</span>
-                </div>
-              )}
-            </div>
-          </div> */}
           <nav className="flex-1 p-4 space-y-2">
             {tabs.map((tab) => (
               <button
@@ -609,10 +591,7 @@ export default function AdminDashboard() {
 
       <div className={`transition-all duration-300 ${isSidebarOpen ? "ml-64" : "ml-20"}`}>
         <header className="sticky top-0 z-30 bg-[#0A0A0F]/85 backdrop-blur-[20px] border-b border-white/5">
-          <div className="flex items-center justify-between px-6 py-4">
-            {/* <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="text-white hover:text-[#F4620A] transition-colors">
-              {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
-            </button> */}
+          <div className="flex items-center justify-end px-6 py-4">
             <div className="flex items-center gap-4">
               <div className="text-right">
                 <p className="text-white text-sm font-medium">{user?.name}</p>
@@ -699,7 +678,7 @@ export default function AdminDashboard() {
                             <div className="flex justify-between items-start mb-3">
                               <div>
                                 <h3 className="text-lg font-bold text-white">{space.name}</h3>
-                                <p className="text-[#A0A0B8] text-sm">{space.type === "private" ? "Bureau Privé" : space.type === "coworking" ? "Espace ouvert" : space.type === "meeting" ? "Salle de Réunion" : space.type} · Capacité : {space.capacity}</p>
+                                <p className="text-[#A0A0B8] text-sm">{space.type === "private" ? "Bureau Privé" : space.type === "coworking" ? "Espace ouvert" : space.type === "meeting" ? "Salle de Réunion" : space.type === "formation" ? "Salle de Formation" : space.type} · Capacité : {space.capacity}</p>
                               </div>
                               <span className={`px-2 py-1 rounded-full text-xs flex-shrink-0 ${space.status === "available" ? "bg-green-400/10 text-green-400" : space.status === "occupied" ? "bg-yellow-400/10 text-yellow-400" : "bg-red-400/10 text-red-400"}`}>
                                 {space.status === "available" ? "Disponible" : space.status === "occupied" ? "Occupé" : "Maintenance"}

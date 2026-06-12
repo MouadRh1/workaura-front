@@ -7,23 +7,23 @@ export default function Footer() {
   const socialLinks = [
     {
       icon: FaFacebook,
-      href: "https://facebook.com/workaura",
+      href: "https://facebook.com/",
       label: "Facebook",
     },
     {
       icon: FaInstagram,
-      href: "https://instagram.com/workaura",
+      href: "https://www.instagram.com/workaura.space/",
       label: "Instagram",
     },
     {
       icon: FaLinkedin,
-      href: "https://linkedin.com/company/workaura",
+      href: "https://linkedin.com",
       label: "LinkedIn",
     },
     {
       icon: FaXTwitter,
-      href: "https://twitter.com/workaura",
-      label: "Twitter",
+      href: "https://x.com/",
+      label: "X",
     },
   ];
 

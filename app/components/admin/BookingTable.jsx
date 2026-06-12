@@ -1,13 +1,40 @@
-// components/admin/BookingTable.jsx
 "use client";
 import {
-  Search,
-  Plus,
-  Edit,
-  Trash2,
-  ChevronLeft,
-  ChevronRight,
+  Search, Plus, Edit, Trash2, ChevronLeft, ChevronRight,
 } from "lucide-react";
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const DURATION_LABELS = {
+  hourly:    "À l'heure",
+  "2_hours": "2 heures",
+  half_day:  "Demi-journée",
+  daily:     "Journée",
+  weekly:    "Semaine",
+  monthly:   "Mois",
+  yearly:    "Année",
+};
+
+const SHORT_DURATIONS = ["hourly", "2_hours", "half_day", "daily"];
+
+const formatDate = (d) =>
+  d ? new Date(d).toLocaleDateString("fr-FR") : null;
+
+// Fonction corrigée pour afficher l'heure
+const formatTime = (time) => {
+  if (!time) return null;
+  // Si time est déjà au format HH:MM:SS ou HH:MM
+  if (typeof time === "string") {
+    return time.substring(0, 5);
+  }
+  return null;
+};
+
+// Affiche l'heure uniquement pour les courtes durées
+const shouldShowTime = (booking) => {
+  if (!SHORT_DURATIONS.includes(booking.duration_type)) return false;
+  if (!booking.start_time) return false;
+  return true;
+};
 
 export function BookingsTable({
   bookings,
@@ -22,49 +49,33 @@ export function BookingsTable({
   onPageChange,
   loading = false,
 }) {
-  const getStatusBadge = (status) => {
+  const getStatusColor = (status) => {
     switch (status) {
-      case "confirmed":
-        return (
-          <span className="flex items-center gap-1 text-green-400 bg-green-400/10 px-2 py-1 rounded-full text-xs">
-            ✅ Confirmé
-          </span>
-        );
-      case "pending":
-        return (
-          <span className="flex items-center gap-1 text-yellow-400 bg-yellow-400/10 px-2 py-1 rounded-full text-xs">
-            ⏳ En attente
-          </span>
-        );
-      case "cancelled":
-        return (
-          <span className="flex items-center gap-1 text-red-400 bg-red-400/10 px-2 py-1 rounded-full text-xs">
-            ❌ Annulé
-          </span>
-        );
-      default:
-        return <span className="text-xs text-[#A0A0B8]">{status}</span>;
+      case "confirmed": return "text-green-400";
+      case "pending":   return "text-yellow-400";
+      case "cancelled": return "text-red-400";
+      default:          return "text-[#A0A0B8]";
     }
   };
 
-  const getStatusColor = (status) => {
+  const getStatusLabel = (status) => {
     switch (status) {
-      case "confirmed":
-        return "text-green-400";
-      case "pending":
-        return "text-yellow-400";
-      case "cancelled":
-        return "text-red-400";
-      default:
-        return "text-[#A0A0B8]";
+      case "confirmed": return "✅ Confirmé";
+      case "pending":   return "⏳ En attente";
+      case "cancelled": return "❌ Annulé";
+      default:          return status;
     }
   };
 
   const getRoomSizeLabel = (roomSize) => {
     if (!roomSize) return null;
-    return roomSize === "small" 
+    return roomSize === "small"
       ? { label: "Petite salle", icon: "🏠", color: "bg-blue-400/10 text-blue-400" }
       : { label: "Grande salle", icon: "🏛️", color: "bg-purple-400/10 text-purple-400" };
+  };
+
+  const getDurationLabel = (durationType) => {
+    return DURATION_LABELS[durationType] || durationType || "Non spécifié";
   };
 
   if (loading) {
@@ -80,20 +91,19 @@ export function BookingsTable({
 
   return (
     <div className="bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 overflow-hidden">
+
+      {/* ── Header ── */}
       <div className="p-6 border-b border-white/10">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h2 className="text-xl font-bold text-white">Réservations</h2>
             <p className="text-[#A0A0B8] text-sm mt-1">
-              Total: {bookings.length} réservation(s)
+              Total : {bookings.length} réservation(s)
             </p>
           </div>
           <div className="flex gap-3">
             <div className="relative">
-              <Search
-                size={18}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-[#A0A0B8]"
-              />
+              <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#A0A0B8]" />
               <input
                 type="text"
                 placeholder="Rechercher par nom ou email..."
@@ -122,131 +132,118 @@ export function BookingsTable({
             <table className="w-full">
               <thead className="bg-white/5 border-b border-white/10">
                 <tr>
-                  <th className="text-left px-6 py-4 text-[#A0A0B8] text-sm font-medium">
-                    Client
-                  </th>
-                  <th className="text-left px-6 py-4 text-[#A0A0B8] text-sm font-medium">
-                    Espace
-                  </th>
-                  <th className="text-left px-6 py-4 text-[#A0A0B8] text-sm font-medium">
-                    Taille
-                  </th>
-                  <th className="text-left px-6 py-4 text-[#A0A0B8] text-sm font-medium">
-                    Date / Période
-                  </th>
-                  <th className="text-left px-6 py-4 text-[#A0A0B8] text-sm font-medium">
-                    Montant
-                  </th>
-                  <th className="text-left px-6 py-4 text-[#A0A0B8] text-sm font-medium">
-                    Statut
-                  </th>
-                  <th className="text-left px-6 py-4 text-[#A0A0B8] text-sm font-medium">
-                    Actions
-                  </th>
+                  {["Client", "Espace", "Formule", "Taille", "Date / Heure", "Durée", "Montant", "Statut", "Actions"].map((h) => (
+                    <th key={h} className="text-left px-6 py-4 text-[#A0A0B8] text-sm font-medium">
+                      {h}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/10">
                 {bookings.map((booking) => {
                   const roomSizeInfo = getRoomSizeLabel(booking.room_size);
+                  const isLong = !SHORT_DURATIONS.includes(booking.duration_type);
+                  const showTime = shouldShowTime(booking);
+                  const startDateFmt = formatDate(booking.booking_date);
+                  const endDateFmt = formatDate(booking.end_date);
+                  const startTimeFmt = formatTime(booking.start_time);
+                  const endTimeFmt = formatTime(booking.end_time);
+
                   return (
-                    <tr
-                      key={booking.id}
-                      className="hover:bg-white/5 transition-colors group"
-                    >
+                    <tr key={booking.id} className="hover:bg-white/5 transition-colors group">
+
+                      {/* Client */}
                       <td className="px-6 py-4">
-                        <div>
-                          <p className="text-white text-sm font-medium">
-                            {booking.guest_name ||
-                              booking.user?.name ||
-                              "Client inconnu"}
-                          </p>
-                          <p className="text-[#A0A0B8] text-xs">
-                            {booking.guest_email ||
-                              booking.user?.email ||
-                              "Email non renseigné"}
-                          </p>
-                          {booking.guest_phone && (
-                            <p className="text-[#A0A0B8] text-xs mt-1">
-                              📞 {booking.guest_phone}
-                            </p>
-                          )}
-                        </div>
+                        <p className="text-white text-sm font-medium">
+                          {booking.guest_name || booking.user?.name || "Client inconnu"}
+                        </p>
+                        <p className="text-[#A0A0B8] text-xs">
+                          {booking.guest_email || booking.user?.email || "Email non renseigné"}
+                        </p>
+                        {booking.guest_phone && (
+                          <p className="text-[#A0A0B8] text-xs mt-1">📞 {booking.guest_phone}</p>
+                        )}
                       </td>
+
+                      {/* Espace */}
                       <td className="px-6 py-4">
                         <p className="text-white text-sm">
                           {booking.space?.name || "Espace inconnu"}
                         </p>
-                        {booking.duration_type && (
-                          <span className="text-[#A0A0B8] text-xs">
-                            {booking.duration_type === "hourly" && "À l'heure"}
-                            {booking.duration_type === "2_hours" && "2 heures"}
-                            {booking.duration_type === "half_day" &&
-                              "Demi-journée"}
-                            {booking.duration_type === "daily" && "Journée"}
-                            {booking.duration_type === "weekly" && "Semaine"}
-                            {booking.duration_type === "monthly" && "Mois"}
-                            {booking.duration_type === "yearly" && "Année"}
-                          </span>
-                        )}
                       </td>
+
+                      {/* Formule (duration_type) */}
+                      <td className="px-6 py-4">
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-white/10 text-white">
+                          {getDurationLabel(booking.duration_type)}
+                        </span>
+                      </td>
+
+                      {/* Taille de salle */}
                       <td className="px-6 py-4">
                         {roomSizeInfo ? (
-                          <span
-                            className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs ${roomSizeInfo.color}`}
-                          >
+                          <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs ${roomSizeInfo.color}`}>
                             {roomSizeInfo.icon} {roomSizeInfo.label}
                           </span>
                         ) : (
                           <span className="text-[#A0A0B8] text-xs">—</span>
                         )}
                       </td>
+
+                      {/* Date / Heure */}
                       <td className="px-6 py-4">
-                        <p className="text-white text-sm">
-                          {booking.booking_date
-                            ? new Date(booking.booking_date).toLocaleDateString(
-                                "fr-FR",
-                              )
-                            : "Date inconnue"}
-                        </p>
-                        {booking.start_time && booking.end_time && (
-                          <p className="text-[#A0A0B8] text-xs">
-                            {booking.start_time?.substring(0, 5)} -{" "}
-                            {booking.end_time?.substring(0, 5)}
-                          </p>
-                        )}
-                        {booking.end_date && (
-                          <p className="text-[#A0A0B8] text-xs">
-                            →{" "}
-                            {new Date(booking.end_date).toLocaleDateString(
-                              "fr-FR",
+                        {isLong ? (
+                          // Longue durée : afficher la plage de dates
+                          <>
+                            <p className="text-white text-sm">{startDateFmt ?? "Date inconnue"}</p>
+                            {endDateFmt && endDateFmt !== startDateFmt && (
+                              <p className="text-[#A0A0B8] text-xs">→ {endDateFmt}</p>
                             )}
-                          </p>
+                          </>
+                        ) : (
+                          // Courte durée : date + heure
+                          <>
+                            <p className="text-white text-sm">{startDateFmt ?? "Date inconnue"}</p>
+                            {showTime && (
+                              <p className="text-[#F4620A] text-xs font-medium">
+                                🕐 {startTimeFmt}
+                                {endTimeFmt && endTimeFmt !== "00:00" && ` → ${endTimeFmt}`}
+                              </p>
+                            )}
+                          </>
                         )}
-                       </td>
+                      </td>
+
+                      {/* Durée détaillée */}
                       <td className="px-6 py-4">
-                        <p className="text-white text-sm font-medium">
-                          {booking.total_amount} MAD
-                        </p>
-                       </td>
+                        {booking.duration_value && booking.duration_unit ? (
+                          <span className="text-white text-sm">
+                            {booking.duration_value} {booking.duration_unit === "days" ? "jour(s)" : booking.duration_unit}
+                          </span>
+                        ) : (
+                          <span className="text-[#A0A0B8] text-xs">—</span>
+                        )}
+                      </td>
+
+                      {/* Montant */}
+                      <td className="px-6 py-4">
+                        <p className="text-white text-sm font-medium">{booking.total_amount} MAD</p>
+                      </td>
+
+                      {/* Statut */}
                       <td className="px-6 py-4">
                         <select
                           value={booking.status}
-                          onChange={(e) =>
-                            onStatusChange?.(booking.id, e.target.value)
-                          }
+                          onChange={(e) => onStatusChange?.(booking.id, e.target.value)}
                           className={`bg-white/5 border border-white/10 rounded-lg text-sm px-3 py-1.5 focus:outline-none focus:border-[#F4620A] ${getStatusColor(booking.status)}`}
                         >
-                          <option value="pending" className="text-yellow-400">
-                            ⏳ En attente
-                          </option>
-                          <option value="confirmed" className="text-green-400">
-                            ✅ Confirmé
-                          </option>
-                          <option value="cancelled" className="text-red-400">
-                            ❌ Annulé
-                          </option>
+                          <option value="pending">⏳ En attente</option>
+                          <option value="confirmed">✅ Confirmé</option>
+                          <option value="cancelled">❌ Annulé</option>
                         </select>
-                       </td>
+                      </td>
+
+                      {/* Actions */}
                       <td className="px-6 py-4">
                         <div className="flex gap-2">
                           <button
@@ -264,7 +261,7 @@ export function BookingsTable({
                             <Trash2 size={16} />
                           </button>
                         </div>
-                       </td>
+                      </td>
                     </tr>
                   );
                 })}
@@ -272,6 +269,7 @@ export function BookingsTable({
             </table>
           </div>
 
+          {/* Pagination */}
           {totalPages > 1 && (
             <div className="flex items-center justify-between px-6 py-4 border-t border-white/10">
               <button
@@ -285,9 +283,7 @@ export function BookingsTable({
                 Page {currentPage} sur {totalPages}
               </span>
               <button
-                onClick={() =>
-                  onPageChange(Math.min(totalPages, currentPage + 1))
-                }
+                onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
                 disabled={currentPage === totalPages}
                 className="flex items-center gap-2 px-3 py-1 rounded-lg bg-white/5 text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white/10 transition-colors"
               >

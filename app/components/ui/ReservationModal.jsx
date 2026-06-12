@@ -2,484 +2,415 @@
 "use client";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import {
-  X,
-  Calendar,
-  Clock,
-  User,
-  Mail,
-  Phone,
-  MessageSquare,
-  CreditCard,
-  CheckCircle,
-  GraduationCap,
-  Sparkles,
-  Hourglass,
-  Sun,
-  CalendarDays,
-  Star,
-  Building2,
-  Users,
-  Info,
-  Tag,
-  ShieldCheck,
-  Maximize2,
-  Loader2,
+  X, Calendar, Clock, User, Mail, Phone, MessageSquare,
+  CreditCard, CheckCircle, GraduationCap, Sparkles, Hourglass,
+  Sun, CalendarDays, Star, Building2, Users, Info, Tag,
+  ShieldCheck, Maximize2, Loader2, ChevronRight, ChevronLeft,
 } from "lucide-react";
 import api from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
 
-// Prix de base journalier pour les salles (fixes)
-const ROOM_DAILY_PRICES = { small: 450, large: 600 };
-
-// Multiplicateurs par rapport au prix journalier
-// Ex: hourly = prix_jour / 8 heures
-const DURATION_MULTIPLIERS = {
-  hourly: { label: "À l'heure", icon: Hourglass, factor: 1 / 8, unit: "heure" },
-  "2_hours": { label: "2 heures", icon: Hourglass, factor: 2 / 8, unit: "2h" },
-  half_day: { label: "Demi-journée", icon: Sun, factor: 1 / 2, unit: "½ jour" },
-  daily: { label: "Journée", icon: Sun, factor: 1, unit: "jour" },
-  weekly: {
-    label: "Semaine",
-    icon: CalendarDays,
-    factor: null,
-    unit: "semaine",
-  },
-  monthly: { label: "Mois", icon: CalendarDays, factor: null, unit: "mois" },
-  yearly: { label: "Année", icon: Star, factor: null, unit: "année" },
+// ─── Prix fixes pour les salles (réunion & formation) ────────────────────────
+// Ces espaces n'ont PAS de pricing dans la BDD — les prix sont calculés ici.
+const ROOM_PRICES = {
+  small: { hourly: 100, "2_hours": 200, half_day: 250, daily: 450 },
+  large: { hourly: 150, "2_hours": 300, half_day: 350, daily: 600 },
 };
 
-// Types d'espaces qui ont des options de taille de salle
+// Types d'espaces avec choix de taille de salle
 const ROOM_SIZE_TYPES = ["meeting", "formation"];
 
-// Réduction étudiant disponible uniquement pour ces formules
+// Formules avec réduction étudiant possible
 const STUDENT_DISCOUNT_ALLOWED = ["weekly", "monthly", "yearly"];
 
-// Durées "courtes" (date unique + heure)
+// Formules "courtes" (date unique + heure de début)
 const SHORT_DURATIONS = ["hourly", "2_hours", "half_day", "daily"];
 
+const DURATION_META = {
+  hourly:    { label: "À l'heure",     icon: Hourglass,    unit: "heure"   },
+  "2_hours": { label: "2 heures",      icon: Hourglass,    unit: "2h"      },
+  half_day:  { label: "Demi-journée",  icon: Sun,          unit: "½ jour"  },
+  daily:     { label: "Journée",       icon: Sun,          unit: "jour"    },
+  weekly:    { label: "Semaine",       icon: CalendarDays, unit: "semaine" },
+  monthly:   { label: "Mois",          icon: CalendarDays, unit: "mois"    },
+  yearly:    { label: "Année",         icon: Star,         unit: "année"   },
+};
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const today = () => new Date().toISOString().split("T")[0];
+
+const formatDate = (d) =>
+  d ? new Date(d).toLocaleDateString("fr-FR") : "—";
+
+const TIME_SLOTS = Array.from({ length: 12 }, (_, i) =>
+  `${(i + 8).toString().padStart(2, "0")}:00`
+);
+
+// ─── Composant ────────────────────────────────────────────────────────────────
 export default function ReservationModal({
   isOpen,
   onClose,
   spaceId,
   spaceName,
-  spaceType,
-  spacePrice,
+  spaceType,   // "meeting" | "formation" | "open" | "private_office" | ...
+  spacePrice,  // prix de base journalier venant de l'API (utilisé pour les espaces sans BDD pricing)
 }) {
   const { user, isAuthenticated } = useAuth();
+
+  const hasRoomSizeOption = useMemo(
+    () => ROOM_SIZE_TYPES.includes(spaceType),
+    [spaceType]
+  );
+
+  // ── State principal ──────────────────────────────────────────────────────────
+  const [step, setStep] = useState(1); // 1 = taille (si applicable) ou formule, 2 = infos + recap, 3 = confirmation
+  const [roomSize, setRoomSize] = useState("small");
+
+  const [selectedOption, setSelectedOption] = useState(null); // PricingOption from API
+  const [pricingOptions, setPricingOptions] = useState([]);
 
   const [formData, setFormData] = useState({
     guest_name: "",
     guest_email: "",
     guest_phone: "",
-    duration_type: "daily",
     booking_date: "",
     start_date: "",
     end_date: "",
     start_time: "09:00",
     notes: "",
     student_discount: false,
-    room_size: "small",
   });
 
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
-  const [totalPrice, setTotalPrice] = useState(0);
-  const [originalPrice, setOriginalPrice] = useState(0);
-  const [step, setStep] = useState(1);
   const [bookingResult, setBookingResult] = useState(null);
-  const [pricingOptions, setPricingOptions] = useState([]);
-  const [selectedPriceOption, setSelectedPriceOption] = useState(null);
 
-  // L'espace a-t-il le choix de taille de salle ?
-  const hasRoomSizeOption = useMemo(
-    () => ROOM_SIZE_TYPES.includes(spaceType),
-    [spaceType],
-  );
-
-  // ─── Prix de base unitaire selon la formule choisie ──────────────────────────
-  const getUnitPrice = useCallback(
-    (durationType = formData.duration_type, roomSize = formData.room_size) => {
-      if (hasRoomSizeOption) {
-        // Pour les salles : on part du prix journalier fixe puis on applique le facteur
-        const dailyBase =
-          roomSize === "small"
-            ? ROOM_DAILY_PRICES.small
-            : ROOM_DAILY_PRICES.large;
-        const mult = DURATION_MULTIPLIERS[durationType];
-        if (!mult) return dailyBase;
-        if (mult.factor !== null) return Math.round(dailyBase * mult.factor);
-        // weekly / monthly / yearly → on renvoie le prix journalier (la totalisation se fera ensuite)
-        return dailyBase;
-      }
-
-      // Pour les autres espaces : on utilise le prix provenant de l'API
-      if (SHORT_DURATIONS.includes(durationType)) {
-        // Recalcul depuis le prix journalier de l'API
-        const dailyOption = pricingOptions.find(
-          (o) => o.duration_type === "daily",
-        );
-        const dailyBase = dailyOption?.price ?? spacePrice ?? 0;
-        const mult = DURATION_MULTIPLIERS[durationType];
-        if (mult?.factor !== null && mult?.factor != null) {
-          return Math.round(dailyBase * mult.factor);
-        }
-      }
-      return selectedPriceOption?.price ?? spacePrice ?? 0;
-    },
-    [
-      hasRoomSizeOption,
-      formData.duration_type,
-      formData.room_size,
-      pricingOptions,
-      selectedPriceOption,
-      spacePrice,
-    ],
-  );
-
-  // ─── Calcul du prix total ─────────────────────────────────────────────────────
-  const calculateTotalPrice = useCallback(() => {
-    const durationType = formData.duration_type;
-    const unitPrice = getUnitPrice(durationType, formData.room_size);
-
-    if (unitPrice === 0) {
-      setOriginalPrice(0);
-      setTotalPrice(0);
-      return;
+  // ── Prix calculé ─────────────────────────────────────────────────────────────
+  const unitPrice = useMemo(() => {
+    if (!selectedOption) return 0;
+    if (hasRoomSizeOption) {
+      return ROOM_PRICES[roomSize]?.[selectedOption.duration_type] ?? 0;
     }
+    return selectedOption.price ?? 0;
+  }, [selectedOption, roomSize, hasRoomSizeOption]);
 
+  const { originalPrice, totalPrice } = useMemo(() => {
+    if (!selectedOption || unitPrice === 0) return { originalPrice: 0, totalPrice: 0 };
+
+    const dt = selectedOption.duration_type;
     let total = unitPrice;
 
-    if (["weekly", "monthly", "yearly"].includes(durationType)) {
+    if (["weekly", "monthly", "yearly"].includes(dt)) {
       if (formData.start_date && formData.end_date) {
-        const start = new Date(formData.start_date);
-        const end = new Date(formData.end_date);
-        const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
-
-        if (durationType === "weekly") {
-          // Prix semaine = prix journalier × 7 × nombre de semaines
-          const dailyPrice = hasRoomSizeOption
-            ? formData.room_size === "small"
-              ? ROOM_DAILY_PRICES.small
-              : ROOM_DAILY_PRICES.large
-            : (pricingOptions.find((o) => o.duration_type === "daily")?.price ??
-              spacePrice ??
-              unitPrice);
-          const weeklyRate = selectedPriceOption?.price ?? dailyPrice * 7;
-          const weeks = Math.ceil(days / 7);
-          total = weeklyRate * weeks;
-        } else if (durationType === "monthly") {
-          const monthlyRate = selectedPriceOption?.price ?? unitPrice * 30;
-          const months = Math.ceil(days / 30);
-          total = monthlyRate * months;
-        } else if (durationType === "yearly") {
-          const yearlyRate = selectedPriceOption?.price ?? unitPrice * 365;
-          const years = Math.ceil(days / 365);
-          total = yearlyRate * years;
-        }
-      }
-      // Pas de dates → on affiche juste le prix de la formule
-      else {
-        total = selectedPriceOption?.price ?? unitPrice;
+        const days =
+          Math.ceil(
+            (new Date(formData.end_date) - new Date(formData.start_date)) /
+              86400000
+          ) + 1;
+        if (dt === "weekly")       total = unitPrice * Math.ceil(days / 7);
+        else if (dt === "monthly") total = unitPrice * Math.ceil(days / 30);
+        else if (dt === "yearly")  total = unitPrice * Math.ceil(days / 365);
       }
     }
-    // Pour les formules courtes, unitPrice est déjà le bon montant
-    // (hourly/2h/half_day/daily : pas de multiplication supplémentaire)
 
-    setOriginalPrice(Math.round(total));
+    const orig = Math.round(total);
+    const disc =
+      formData.student_discount && STUDENT_DISCOUNT_ALLOWED.includes(dt)
+        ? Math.round(total * 0.8)
+        : orig;
 
-    if (
-      formData.student_discount &&
-      STUDENT_DISCOUNT_ALLOWED.includes(durationType)
-    ) {
-      total = total * 0.8;
-    }
+    return { originalPrice: orig, totalPrice: disc };
+  }, [selectedOption, unitPrice, formData.start_date, formData.end_date, formData.student_discount]);
 
-    setTotalPrice(Math.round(total));
-  }, [
-    formData.duration_type,
-    formData.start_date,
-    formData.end_date,
-    formData.student_discount,
-    formData.room_size,
-    getUnitPrice,
-    hasRoomSizeOption,
-    pricingOptions,
-    selectedPriceOption,
-    spacePrice,
-  ]);
-
-  // ─── Effects ──────────────────────────────────────────────────────────────────
+  // ── Reset à l'ouverture ──────────────────────────────────────────────────────
   useEffect(() => {
-    if (isOpen && spaceId) fetchPricingOptions();
-  }, [isOpen, spaceId]);
+    if (!isOpen) return;
+    setStep(hasRoomSizeOption ? 1 : 2); // skip étape taille si pas de salle
+    setRoomSize("small");
+    setSelectedOption(null);
+    setErrors({});
+    setBookingResult(null);
+    setFormData({
+      guest_name:  isAuthenticated && user ? user.name  ?? "" : "",
+      guest_email: isAuthenticated && user ? user.email ?? "" : "",
+      guest_phone: isAuthenticated && user ? user.phone ?? "" : "",
+      booking_date: "",
+      start_date: "",
+      end_date: "",
+      start_time: "09:00",
+      notes: "",
+      student_discount: false,
+    });
+  }, [isOpen, isAuthenticated, user, hasRoomSizeOption]);
 
+  // ── Chargement pricing (uniquement pour espaces non-salle) ───────────────────
   useEffect(() => {
-    if (isOpen) {
-      setFormData({
-        guest_name: isAuthenticated && user ? user.name || "" : "",
-        guest_email: isAuthenticated && user ? user.email || "" : "",
-        guest_phone: isAuthenticated && user ? user.phone || "" : "",
-        duration_type: "daily",
-        booking_date: "",
-        start_date: "",
-        end_date: "",
-        start_time: "09:00",
-        notes: "",
-        student_discount: false,
-        room_size: "small",
-      });
-      setErrors({});
-      setStep(1);
-      setBookingResult(null);
-      setSelectedPriceOption(null);
-    }
-  }, [isOpen, isAuthenticated, user]);
-
-  useEffect(() => {
-    calculateTotalPrice();
-  }, [calculateTotalPrice]);
-
-  // ─── API ──────────────────────────────────────────────────────────────────────
-  const fetchPricingOptions = async () => {
-    try {
-      const response = await api.get(`/spaces/${spaceId}/pricing`);
-      const options = response.data.pricing_options || [];
+    if (!isOpen || !spaceId) return;
+    if (hasRoomSizeOption) {
+      // Pas d'appel API — on construit les options depuis ROOM_PRICES
+      const options = Object.entries(ROOM_PRICES.small).map(([dt], i) => ({
+        id: i,
+        duration_type: dt,
+        price: ROOM_PRICES.small[dt], // on recalculera selon roomSize dans unitPrice
+      }));
       setPricingOptions(options);
-
-      const defaultOption =
-        options.find((o) => o.duration_type === "daily") || options[0];
-      if (defaultOption) {
-        setSelectedPriceOption(defaultOption);
-        setFormData((prev) => ({
-          ...prev,
-          duration_type: defaultOption.duration_type,
-        }));
-      }
-    } catch (error) {
-      console.error("Erreur chargement tarifs:", error);
+      setSelectedOption(options.find((o) => o.duration_type === "daily") ?? options[0]);
+    } else {
+      api
+        .get(`/spaces/${spaceId}/pricing`)
+        .then(({ data }) => {
+          const opts = data.pricing_options ?? [];
+          setPricingOptions(opts);
+          const def = opts.find((o) => o.duration_type === "daily") ?? opts[0];
+          if (def) setSelectedOption(def);
+        })
+        .catch((e) => console.error("Erreur tarifs:", e));
     }
-  };
+  }, [isOpen, spaceId, hasRoomSizeOption]);
 
-  // ─── Handlers ─────────────────────────────────────────────────────────────────
+  // ── Handlers ─────────────────────────────────────────────────────────────────
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-    if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
+    setFormData((p) => ({ ...p, [name]: value }));
+    if (errors[name]) setErrors((p) => ({ ...p, [name]: "" }));
   };
 
-  const handleRoomSizeChange = (size) => {
-    setFormData((prev) => ({ ...prev, room_size: size }));
+  const toggleDiscount = () => {
+    if (!STUDENT_DISCOUNT_ALLOWED.includes(selectedOption?.duration_type)) return;
+    setFormData((p) => ({ ...p, student_discount: !p.student_discount }));
   };
 
-  const handleDurationChange = (option) => {
-    const isLong = STUDENT_DISCOUNT_ALLOWED.includes(option.duration_type);
-    setSelectedPriceOption(option);
-    setFormData((prev) => ({
-      ...prev,
-      duration_type: option.duration_type,
-      student_discount: isLong ? prev.student_discount : false,
-    }));
-  };
+  const isDiscountAllowed = STUDENT_DISCOUNT_ALLOWED.includes(
+    selectedOption?.duration_type
+  );
 
-  const handleDiscountToggle = () => {
-    if (!STUDENT_DISCOUNT_ALLOWED.includes(formData.duration_type)) return;
-    setFormData((prev) => ({
-      ...prev,
-      student_discount: !prev.student_discount,
-    }));
-  };
-
-  const validateForm = () => {
-    const newErrors = {};
-    if (!formData.guest_name?.trim())
-      newErrors.guest_name = "Le nom est requis";
-    if (!formData.guest_email?.trim())
-      newErrors.guest_email = "L'email est requis";
+  // ── Validation ────────────────────────────────────────────────────────────────
+  const validateStep2 = () => {
+    const e = {};
+    if (!formData.guest_name?.trim())  e.guest_name  = "Le nom est requis";
+    if (!formData.guest_email?.trim()) e.guest_email = "L'email est requis";
     else if (!/\S+@\S+\.\S+/.test(formData.guest_email))
-      newErrors.guest_email = "Email invalide";
-    if (!formData.guest_phone?.trim())
-      newErrors.guest_phone = "Le téléphone est requis";
+      e.guest_email = "Email invalide";
+    if (!formData.guest_phone?.trim()) e.guest_phone = "Le téléphone est requis";
 
-    if (SHORT_DURATIONS.includes(formData.duration_type)) {
-      if (!formData.booking_date)
-        newErrors.booking_date = "La date est requise";
-      if (!formData.start_time)
-        newErrors.start_time = "L'heure de début est requise";
+    const dt = selectedOption?.duration_type;
+    if (SHORT_DURATIONS.includes(dt)) {
+      if (!formData.booking_date) e.booking_date = "La date est requise";
+      if (!formData.start_time)   e.start_time   = "L'heure est requise";
     } else {
-      if (!formData.start_date)
-        newErrors.start_date = "La date de début est requise";
-      if (!formData.end_date) newErrors.end_date = "La date de fin est requise";
+      if (!formData.start_date) e.start_date = "Date de début requise";
+      if (!formData.end_date)   e.end_date   = "Date de fin requise";
     }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    setErrors(e);
+    return Object.keys(e).length === 0;
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!validateForm()) return;
+  // ── Submit ────────────────────────────────────────────────────────────────────
+  const handleSubmit = async () => {
+    if (!validateStep2()) return;
     setLoading(true);
     try {
       const payload = {
         space_id: spaceId,
-        duration_type: formData.duration_type,
-        guest_name: formData.guest_name,
+        duration_type: selectedOption.duration_type,
+        guest_name:  formData.guest_name,
         guest_email: formData.guest_email,
         guest_phone: formData.guest_phone,
-        notes: formData.notes,
+        notes:       formData.notes,
         student_discount: formData.student_discount,
-        room_size: hasRoomSizeOption ? formData.room_size : undefined,
+        ...(hasRoomSizeOption ? { room_size: roomSize } : {}),
+        ...(SHORT_DURATIONS.includes(selectedOption.duration_type)
+          ? { booking_date: formData.booking_date, start_time: formData.start_time }
+          : { start_date: formData.start_date, end_date: formData.end_date }),
       };
-
-      if (SHORT_DURATIONS.includes(formData.duration_type)) {
-        payload.booking_date = formData.booking_date;
-        payload.start_time = formData.start_time;
-      } else {
-        payload.start_date = formData.start_date;
-        payload.end_date = formData.end_date;
-      }
-
-      const response = await api.post("/bookings", payload);
-      setBookingResult(response.data);
-      setStep(2);
-    } catch (error) {
-      console.error("Erreur réservation:", error);
-      if (error.response?.data?.errors) setErrors(error.response.data.errors);
-      else if (error.response?.data?.message)
-        alert(error.response.data.message);
-      else alert("Une erreur est survenue. Veuillez réessayer.");
+      const { data } = await api.post("/bookings", payload);
+      setBookingResult(data);
+      setStep(3);
+    } catch (err) {
+      if (err.response?.data?.errors) setErrors(err.response.data.errors);
+      else alert(err.response?.data?.message ?? "Une erreur est survenue.");
     } finally {
       setLoading(false);
     }
   };
 
-  // ─── Helpers ──────────────────────────────────────────────────────────────────
-  const getTimeSlots = () => {
-    const slots = [];
-    for (let i = 8; i <= 19; i++)
-      slots.push(`${i.toString().padStart(2, "0")}:00`);
-    return slots;
-  };
-
-  const getDurationLabel = () =>
-    DURATION_MULTIPLIERS[formData.duration_type]?.label ||
-    formData.duration_type;
-
-  const getDurationIcon = () => {
-    const Icon = DURATION_MULTIPLIERS[formData.duration_type]?.icon;
-    return Icon ? <Icon size={20} /> : <Calendar size={20} />;
-  };
-
-  const isDiscountAllowed = STUDENT_DISCOUNT_ALLOWED.includes(
-    formData.duration_type,
-  );
-
-  // Prix affiché sur le bouton de formule (en tenant compte de la taille de salle)
-  const getDisplayPrice = (option) => {
-    if (hasRoomSizeOption) {
-      return getUnitPrice(option.duration_type, formData.room_size);
-    }
-    return option.price;
+  // ── Navigation des étapes ────────────────────────────────────────────────────
+  // Étape 1 : choix taille (seulement si hasRoomSizeOption)
+  // Étape 2 : choix formule + infos personnelles + dates
+  // Étape 3 : confirmation finale
+  const stepLabel = () => {
+    if (step === 3) return "Réservation confirmée";
+    if (step === 1) return "Choisissez votre salle";
+    return "Votre réservation";
   };
 
   if (!isOpen) return null;
 
+  // ── Render ────────────────────────────────────────────────────────────────────
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-      <div className="bg-gradient-to-br from-[#0A0A0F] to-[#12121A] border border-white/10 rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="relative h-32 bg-gradient-to-r from-[#F4620A] to-[#C040E0] sticky top-0">
+      <div className="bg-gradient-to-br from-[#0A0A0F] to-[#12121A] border border-white/10 rounded-2xl max-w-2xl w-full shadow-2xl max-h-[90vh] overflow-y-auto">
+
+        {/* ── Header ── */}
+        <div className="relative h-28 bg-gradient-to-r from-[#F4620A] to-[#C040E0] sticky top-0 z-10 rounded-t-2xl">
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 p-2 rounded-full bg-black/30 hover:bg-black/50 text-white transition-all z-10"
+            className="absolute top-4 right-4 p-2 rounded-full bg-black/30 hover:bg-black/50 text-white transition-all"
           >
             <X size={20} />
           </button>
-          <div className="absolute bottom-4 left-6">
-            <div className="flex items-center gap-2 mb-2">
-              <Sparkles size={20} className="text-yellow-300" />
-              <h3 className="text-2xl font-bold text-white">
-                {step === 1 ? "Réserver un espace" : "Confirmation"}
-              </h3>
+
+          {/* Indicateur d'étapes */}
+          {step < 3 && (
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-2">
+              {(hasRoomSizeOption ? [1, 2] : [2]).map((s, i) => (
+                <div key={s} className="flex items-center gap-2">
+                  <div
+                    className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                      step === s
+                        ? "bg-white text-[#F4620A]"
+                        : step > s
+                        ? "bg-white/60 text-white"
+                        : "bg-white/20 text-white/60"
+                    }`}
+                  >
+                    {i + 1}
+                  </div>
+                  {i === 0 && hasRoomSizeOption && (
+                    <div className="w-8 h-px bg-white/40" />
+                  )}
+                </div>
+              ))}
             </div>
-            <p className="text-white/80 text-sm">
-              {step === 1 ? spaceName : "Votre réservation est confirmée"}
-            </p>
+          )}
+
+          <div className="absolute bottom-4 left-6">
+            <div className="flex items-center gap-2 mb-1">
+              <Sparkles size={18} className="text-yellow-300" />
+              <h3 className="text-xl font-bold text-white">{stepLabel()}</h3>
+            </div>
+            <p className="text-white/75 text-sm">{spaceName}</p>
           </div>
         </div>
 
-        {/* ── STEP 1 : Formulaire ── */}
-        {step === 1 ? (
-          <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        {/* ══════════════════════════════════════════════════════════════════════
+            ÉTAPE 1 — Choix de la taille de salle
+        ════════════════════════════════════════════════════════════════════════*/}
+        {step === 1 && hasRoomSizeOption && (
+          <div className="p-6 space-y-6">
+            <p className="text-[#A0A0B8] text-sm">
+              Sélectionnez la taille de salle adaptée à votre groupe. Le tarif s'ajustera automatiquement.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {[
+                {
+                  key: "small",
+                  emoji: "🏠",
+                  label: "Petite salle",
+                  capacity: "6 – 10 personnes",
+                  priceRef: ROOM_PRICES.small.daily,
+                  features: ["Tableau blanc", "Écran HD", "Climatisation"],
+                },
+                {
+                  key: "large",
+                  emoji: "🏛️",
+                  label: "Grande salle",
+                  capacity: "12 – 20 personnes",
+                  priceRef: ROOM_PRICES.large.daily,
+                  features: ["Vidéoprojecteur", "Système audio", "Climatisation"],
+                },
+              ].map(({ key, emoji, label, capacity, priceRef, features }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setRoomSize(key)}
+                  className={`p-5 rounded-2xl text-left transition-all border-2 ${
+                    roomSize === key
+                      ? "border-[#F4620A] bg-gradient-to-br from-[#F4620A]/15 to-[#C040E0]/10 shadow-lg"
+                      : "border-white/10 bg-white/5 hover:border-white/25 hover:bg-white/10"
+                  }`}
+                >
+                  <div className="text-3xl mb-3">{emoji}</div>
+                  <div className="font-semibold text-white text-base mb-1">{label}</div>
+                  <div className="flex items-center gap-1 text-[#A0A0B8] text-sm mb-3">
+                    <Users size={14} />
+                    {capacity}
+                  </div>
+                  <ul className="space-y-1 mb-4">
+                    {features.map((f) => (
+                      <li key={f} className="text-xs text-[#A0A0B8] flex items-center gap-2">
+                        <CheckCircle size={12} className="text-[#F4620A]" />
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="text-[#F4620A] font-bold text-lg">
+                    À partir de {priceRef} MAD
+                    <span className="text-xs text-[#A0A0B8] font-normal ml-1">/ jour</span>
+                  </div>
+                  {roomSize === key && (
+                    <div className="mt-2 text-xs text-[#F4620A] font-medium flex items-center gap-1">
+                      <CheckCircle size={12} /> Sélectionnée
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setStep(2)}
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-[#F4620A] to-[#C040E0] text-white font-semibold flex items-center justify-center gap-2 hover:shadow-lg hover:scale-[1.01] transition-all"
+            >
+              Choisir la formule
+              <ChevronRight size={20} />
+            </button>
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════════
+            ÉTAPE 2 — Formule + Infos + Dates
+        ════════════════════════════════════════════════════════════════════════*/}
+        {step === 2 && (
+          <div className="p-6 space-y-6">
+
+            {/* Bouton retour (si salle) */}
+            {hasRoomSizeOption && (
+              <button
+                type="button"
+                onClick={() => setStep(1)}
+                className="flex items-center gap-2 text-[#A0A0B8] hover:text-white text-sm transition-colors"
+              >
+                <ChevronLeft size={16} />
+                Changer la taille de salle
+                <span className="ml-1 px-2 py-0.5 rounded-full bg-white/10 text-white text-xs">
+                  {roomSize === "small" ? "🏠 Petite salle" : "🏛️ Grande salle"}
+                </span>
+              </button>
+            )}
+
             {/* Résumé espace */}
             <div className="bg-gradient-to-r from-[#F4620A]/10 to-[#C040E0]/10 rounded-xl p-4 border border-[#F4620A]/20">
-              <h4 className="text-white font-semibold mb-2 flex items-center gap-2">
-                <Building2 size={18} className="text-[#F4620A]" />
-                Informations sur l'espace
-              </h4>
               <div className="flex justify-between items-center">
                 <div>
-                  <p className="text-white text-lg font-medium">{spaceName}</p>
-                  <p className="text-[#A0A0B8] text-sm">Capacité flexible</p>
+                  <p className="text-white font-medium">{spaceName}</p>
+                  {hasRoomSizeOption && (
+                    <p className="text-[#A0A0B8] text-sm">
+                      {roomSize === "small" ? "Petite salle — 4 à 8 pers." : "Grande salle — 12 à 20 pers."}
+                    </p>
+                  )}
                 </div>
                 <div className="text-right">
                   <p className="text-[#A0A0B8] text-xs">
-                    Tarif {DURATION_MULTIPLIERS[formData.duration_type]?.unit}
+                    / {DURATION_META[selectedOption?.duration_type]?.unit ?? "unité"}
                   </p>
-                  <p className="text-[#F4620A] text-2xl font-bold">
-                    {getUnitPrice()} MAD
-                  </p>
+                  <p className="text-[#F4620A] text-2xl font-bold">{unitPrice} MAD</p>
                 </div>
               </div>
             </div>
 
-            {/* Sélection taille de salle */}
-            {hasRoomSizeOption && (
-              <div>
-                <label className="block text-white text-sm font-medium mb-3 flex items-center gap-2">
-                  <Maximize2 size={16} className="text-[#F4620A]" />
-                  Choisissez la taille de la salle
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  {[
-                    {
-                      key: "small",
-                      emoji: "🏠",
-                      label: "Petite salle",
-                      capacity: "4–8 personnes",
-                      price: ROOM_DAILY_PRICES.small,
-                    },
-                    {
-                      key: "large",
-                      emoji: "🏛️",
-                      label: "Grande salle",
-                      capacity: "12–20 personnes",
-                      price: ROOM_DAILY_PRICES.large,
-                    },
-                  ].map(({ key, emoji, label, capacity, price }) => (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => handleRoomSizeChange(key)}
-                      className={`p-4 rounded-xl text-center transition-all border ${
-                        formData.room_size === key
-                          ? "bg-gradient-to-r from-[#F4620A] to-[#C040E0] text-white border-transparent shadow-lg scale-105"
-                          : "bg-white/10 text-[#A0A0B8] border-white/10 hover:bg-white/20"
-                      }`}
-                    >
-                      <div className="text-2xl mb-2">{emoji}</div>
-                      <div className="text-sm font-medium">{label}</div>
-                      <div className="text-xs mt-1">{capacity}</div>
-                      <div className="text-sm font-bold mt-2">
-                        {price} MAD / jour
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Sélection durée */}
+            {/* Sélection formule */}
             <div>
               <label className="block text-white text-sm font-medium mb-3 flex items-center gap-2">
                 <Clock size={16} className="text-[#F4620A]" />
@@ -487,35 +418,32 @@ export default function ReservationModal({
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                 {pricingOptions.map((option) => {
-                  const Icon =
-                    DURATION_MULTIPLIERS[option.duration_type]?.icon ||
-                    Calendar;
-                  const displayPrice = getDisplayPrice(option);
-                  const unitLabel =
-                    DURATION_MULTIPLIERS[option.duration_type]?.unit || "";
+                  const meta = DURATION_META[option.duration_type];
+                  const Icon = meta?.icon ?? Calendar;
+                  const price = hasRoomSizeOption
+                    ? ROOM_PRICES[roomSize]?.[option.duration_type] ?? 0
+                    : option.price;
                   return (
                     <button
                       key={option.id}
                       type="button"
-                      onClick={() => handleDurationChange(option)}
-                      className={`p-3 rounded-xl text-center transition-all ${
-                        selectedPriceOption?.id === option.id
-                          ? "bg-gradient-to-r from-[#F4620A] to-[#C040E0] text-white shadow-lg scale-105"
-                          : "bg-white/10 text-[#A0A0B8] hover:bg-white/20"
+                      onClick={() => {
+                        setSelectedOption(option);
+                        if (!STUDENT_DISCOUNT_ALLOWED.includes(option.duration_type)) {
+                          setFormData((p) => ({ ...p, student_discount: false }));
+                        }
+                      }}
+                      className={`p-3 rounded-xl text-center transition-all border ${
+                        selectedOption?.id === option.id
+                          ? "bg-gradient-to-r from-[#F4620A] to-[#C040E0] text-white border-transparent shadow-lg scale-105"
+                          : "bg-white/5 text-[#A0A0B8] border-white/10 hover:bg-white/10 hover:border-white/20"
                       }`}
                     >
-                      <Icon size={24} className="mx-auto mb-1" />
-                      <div className="text-sm font-medium">
-                        {DURATION_MULTIPLIERS[option.duration_type]?.label ||
-                          option.duration_type}
-                      </div>
-                      <div className="text-xs font-bold mt-1">
-                        {displayPrice} MAD
-                      </div>
-                      {unitLabel && (
-                        <div className="text-[10px] opacity-70 mt-0.5">
-                          / {unitLabel}
-                        </div>
+                      <Icon size={22} className="mx-auto mb-1" />
+                      <div className="text-xs font-medium leading-tight">{meta?.label ?? option.duration_type}</div>
+                      <div className="text-sm font-bold mt-1">{price} MAD</div>
+                      {meta?.unit && (
+                        <div className="text-[10px] opacity-70 mt-0.5">/ {meta.unit}</div>
                       )}
                     </button>
                   );
@@ -523,112 +451,94 @@ export default function ReservationModal({
               </div>
             </div>
 
-            {/* Date / Heure */}
-            {SHORT_DURATIONS.includes(formData.duration_type) ? (
-              <>
-                <div>
-                  <label className="block text-white text-sm font-medium mb-2 flex items-center gap-2">
-                    <Calendar size={16} className="text-[#F4620A]" />
-                    Date de réservation *
-                  </label>
-                  <input
-                    type="date"
-                    name="booking_date"
-                    value={formData.booking_date}
-                    onChange={handleChange}
-                    min={new Date().toISOString().split("T")[0]}
-                    className={`w-full px-4 py-3 bg-white/5 border rounded-xl text-white focus:outline-none focus:border-[#F4620A] transition-all ${
-                      errors.booking_date ? "border-red-500" : "border-white/10"
-                    }`}
-                  />
-                  {errors.booking_date && (
-                    <p className="text-red-400 text-xs mt-1">
-                      {errors.booking_date}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-white text-sm font-medium mb-2 flex items-center gap-2">
-                    <Clock size={16} className="text-[#F4620A]" />
-                    Heure de début *
-                  </label>
-                  <select
-                    name="start_time"
-                    value={formData.start_time}
-                    onChange={handleChange}
-                    className="w-full px-4 py-3 bg-[#1A1A2E] border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#F4620A] transition-all appearance-none cursor-pointer"
-                  >
-                    {getTimeSlots().map((slot) => (
-                      <option
-                        key={slot}
-                        value={slot}
-                        className="bg-[#1A1A2E] text-white"
-                      >
-                        {slot}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </>
-            ) : (
-              <div className="grid grid-cols-2 gap-4">
-                {[
-                  { name: "start_date", label: "Date de début" },
-                  { name: "end_date", label: "Date de fin" },
-                ].map(({ name, label }) => (
-                  <div key={name}>
+            {/* Date(s) */}
+            {selectedOption && (
+              SHORT_DURATIONS.includes(selectedOption.duration_type) ? (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
                     <label className="block text-white text-sm font-medium mb-2 flex items-center gap-2">
                       <Calendar size={16} className="text-[#F4620A]" />
-                      {label} *
+                      Date *
                     </label>
                     <input
                       type="date"
-                      name={name}
-                      value={formData[name]}
+                      name="booking_date"
+                      value={formData.booking_date}
                       onChange={handleChange}
-                      min={
-                        name === "end_date"
-                          ? formData.start_date ||
-                            new Date().toISOString().split("T")[0]
-                          : new Date().toISOString().split("T")[0]
-                      }
+                      min={today()}
                       className={`w-full px-4 py-3 bg-white/5 border rounded-xl text-white focus:outline-none focus:border-[#F4620A] transition-all ${
-                        errors[name] ? "border-red-500" : "border-white/10"
+                        errors.booking_date ? "border-red-500" : "border-white/10"
                       }`}
                     />
-                    {errors[name] && (
-                      <p className="text-red-400 text-xs mt-1">
-                        {errors[name]}
-                      </p>
+                    {errors.booking_date && (
+                      <p className="text-red-400 text-xs mt-1">{errors.booking_date}</p>
                     )}
                   </div>
-                ))}
-              </div>
+                  <div>
+                    <label className="block text-white text-sm font-medium mb-2 flex items-center gap-2">
+                      <Clock size={16} className="text-[#F4620A]" />
+                      Heure *
+                    </label>
+                    <select
+                      name="start_time"
+                      value={formData.start_time}
+                      onChange={handleChange}
+                      className="w-full px-4 py-3 bg-[#1A1A2E] border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#F4620A] transition-all"
+                    >
+                      {TIME_SLOTS.map((s) => (
+                        <option key={s} value={s} className="bg-[#1A1A2E]">{s}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-4">
+                  {[
+                    { name: "start_date", label: "Date de début" },
+                    { name: "end_date",   label: "Date de fin"   },
+                  ].map(({ name, label }) => (
+                    <div key={name}>
+                      <label className="block text-white text-sm font-medium mb-2 flex items-center gap-2">
+                        <Calendar size={16} className="text-[#F4620A]" />
+                        {label} *
+                      </label>
+                      <input
+                        type="date"
+                        name={name}
+                        value={formData[name]}
+                        onChange={handleChange}
+                        min={
+                          name === "end_date"
+                            ? formData.start_date || today()
+                            : today()
+                        }
+                        className={`w-full px-4 py-3 bg-white/5 border rounded-xl text-white focus:outline-none focus:border-[#F4620A] transition-all ${
+                          errors[name] ? "border-red-500" : "border-white/10"
+                        }`}
+                      />
+                      {errors[name] && (
+                        <p className="text-red-400 text-xs mt-1">{errors[name]}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )
             )}
 
             {/* Réduction étudiant */}
             <div
-              className={`rounded-xl p-4 transition-all ${
+              className={`rounded-xl p-4 transition-all border ${
                 isDiscountAllowed
-                  ? "bg-white/5"
-                  : "bg-white/[0.02] opacity-50 cursor-not-allowed"
+                  ? "bg-white/5 border-white/10 cursor-pointer"
+                  : "bg-white/[0.02] border-white/5 opacity-50 cursor-not-allowed"
               }`}
+              onClick={isDiscountAllowed ? toggleDiscount : undefined}
             >
-              <label
-                className={`flex items-center justify-between ${
-                  isDiscountAllowed ? "cursor-pointer" : "cursor-not-allowed"
-                }`}
-              >
+              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <GraduationCap
-                    size={24}
-                    className={
-                      isDiscountAllowed ? "text-[#F4620A]" : "text-[#A0A0B8]"
-                    }
-                  />
+                  <GraduationCap size={22} className={isDiscountAllowed ? "text-[#F4620A]" : "text-[#A0A0B8]"} />
                   <div>
-                    <p className="text-white font-medium flex items-center gap-2">
+                    <p className="text-white font-medium text-sm flex items-center gap-2">
                       Réduction étudiant
                       {!isDiscountAllowed && (
                         <span className="text-[10px] bg-white/10 text-[#A0A0B8] px-2 py-0.5 rounded-full">
@@ -636,30 +546,21 @@ export default function ReservationModal({
                         </span>
                       )}
                     </p>
-                    <p className="text-[#A0A0B8] text-xs">
-                      -20% sur votre réservation
-                    </p>
+                    <p className="text-[#A0A0B8] text-xs">−20% sur votre réservation</p>
                   </div>
                 </div>
-                <div className="relative">
-                  <input
-                    type="checkbox"
-                    checked={formData.student_discount}
-                    onChange={handleDiscountToggle}
-                    disabled={!isDiscountAllowed}
-                    className="sr-only peer"
-                  />
-                  <div
-                    className={`w-11 h-6 rounded-full peer transition-all
-                    ${
-                      isDiscountAllowed
-                        ? "bg-white/10 peer-checked:bg-gradient-to-r peer-checked:from-[#F4620A] peer-checked:to-[#C040E0]"
-                        : "bg-white/5"
-                    }
-                    after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full`}
+                <div className="relative pointer-events-none">
+                  <input type="checkbox" checked={formData.student_discount} readOnly className="sr-only peer" />
+                  <div className={`w-11 h-6 rounded-full transition-all
+                    ${isDiscountAllowed
+                      ? "bg-white/10 peer-checked:bg-gradient-to-r peer-checked:from-[#F4620A] peer-checked:to-[#C040E0]"
+                      : "bg-white/5"}
+                    ${formData.student_discount ? "bg-gradient-to-r from-[#F4620A] to-[#C040E0]" : ""}
+                    relative after:content-[''] after:absolute after:top-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all
+                    ${formData.student_discount ? "after:left-[22px]" : "after:left-[2px]"}`}
                   />
                 </div>
-              </label>
+              </div>
             </div>
 
             {/* Coordonnées */}
@@ -670,56 +571,31 @@ export default function ReservationModal({
               </h4>
 
               {[
-                {
-                  name: "guest_name",
-                  type: "text",
-                  icon: User,
-                  label: "Nom complet",
-                  placeholder: "Mouad Rahmouni",
-                  disabled: isAuthenticated,
-                },
-                {
-                  name: "guest_email",
-                  type: "email",
-                  icon: Mail,
-                  label: "Email",
-                  placeholder: "mouad@email.com",
-                  disabled: isAuthenticated,
-                },
-                {
-                  name: "guest_phone",
-                  type: "tel",
-                  icon: Phone,
-                  label: "Téléphone",
-                  placeholder: "+212 6XX XXX XXX",
-                  disabled: false,
-                },
-              ].map(
-                ({ name, type, icon: Icon, label, placeholder, disabled }) => (
-                  <div key={name}>
-                    <label className="block text-white text-sm font-medium mb-2 flex items-center gap-2">
-                      <Icon size={16} className="text-[#F4620A]" />
-                      {label} *
-                    </label>
-                    <input
-                      type={type}
-                      name={name}
-                      value={formData[name]}
-                      onChange={handleChange}
-                      placeholder={placeholder}
-                      disabled={disabled}
-                      className={`w-full px-4 py-3 bg-white/5 border rounded-xl text-white placeholder-[#A0A0B8] focus:outline-none focus:border-[#F4620A] transition-all ${
-                        errors[name] ? "border-red-500" : "border-white/10"
-                      } ${disabled ? "opacity-60 cursor-not-allowed" : ""}`}
-                    />
-                    {errors[name] && (
-                      <p className="text-red-400 text-xs mt-1">
-                        {errors[name]}
-                      </p>
-                    )}
-                  </div>
-                ),
-              )}
+                { name: "guest_name",  type: "text",  icon: User,  label: "Nom complet",  placeholder: "Nom complet",       disabled: isAuthenticated },
+                { name: "guest_email", type: "email", icon: Mail,  label: "Email",         placeholder: "workaura@email.com",      disabled: isAuthenticated },
+                { name: "guest_phone", type: "tel",   icon: Phone, label: "Téléphone",     placeholder: "+212 6XX XXX XXX",     disabled: false           },
+              ].map(({ name, type, icon: Icon, label, placeholder, disabled }) => (
+                <div key={name}>
+                  <label className="block text-white text-sm font-medium mb-2 flex items-center gap-2">
+                    <Icon size={16} className="text-[#F4620A]" />
+                    {label} *
+                  </label>
+                  <input
+                    type={type}
+                    name={name}
+                    value={formData[name]}
+                    onChange={handleChange}
+                    placeholder={placeholder}
+                    disabled={disabled}
+                    className={`w-full px-4 py-3 bg-white/5 border rounded-xl text-white placeholder-[#A0A0B8] focus:outline-none focus:border-[#F4620A] transition-all ${
+                      errors[name] ? "border-red-500" : "border-white/10"
+                    } ${disabled ? "opacity-60 cursor-not-allowed" : ""}`}
+                  />
+                  {errors[name] && (
+                    <p className="text-red-400 text-xs mt-1">{errors[name]}</p>
+                  )}
+                </div>
+              ))}
 
               <div>
                 <label className="block text-white text-sm font-medium mb-2 flex items-center gap-2">
@@ -737,183 +613,145 @@ export default function ReservationModal({
               </div>
             </div>
 
-            {/* Récapitulatif */}
+            {/* Récapitulatif prix */}
             <div className="bg-gradient-to-r from-[#F4620A]/20 to-[#C040E0]/20 rounded-xl p-4 border border-[#F4620A]/30">
               <h4 className="text-white font-semibold mb-3 flex items-center gap-2">
                 <Tag size={18} className="text-[#F4620A]" />
                 Récapitulatif
               </h4>
               <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-[#A0A0B8]">Formule choisie</span>
-                  <span className="text-white font-medium flex items-center gap-1">
-                    {getDurationIcon()}
-                    {getDurationLabel()}
-                  </span>
-                </div>
                 {hasRoomSizeOption && (
                   <div className="flex justify-between">
-                    <span className="text-[#A0A0B8]">Taille de salle</span>
+                    <span className="text-[#A0A0B8]">Salle</span>
                     <span className="text-white">
-                      {formData.room_size === "small"
-                        ? "Petite salle (4–8 pers.)"
-                        : "Grande salle (12–20 pers.)"}
+                      {roomSize === "small" ? "🏠 Petite salle" : "🏛️ Grande salle"}
                     </span>
                   </div>
                 )}
                 <div className="flex justify-between">
-                  <span className="text-[#A0A0B8]">
-                    Prix /{" "}
-                    {DURATION_MULTIPLIERS[formData.duration_type]?.unit ||
-                      "unité"}
+                  <span className="text-[#A0A0B8]">Formule</span>
+                  <span className="text-white">
+                    {DURATION_META[selectedOption?.duration_type]?.label ?? "—"}
                   </span>
-                  <span className="text-white">{getUnitPrice()} MAD</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#A0A0B8]">
+                    Prix / {DURATION_META[selectedOption?.duration_type]?.unit ?? "unité"}
+                  </span>
+                  <span className="text-white">{unitPrice} MAD</span>
                 </div>
                 {formData.student_discount && isDiscountAllowed && (
                   <div className="flex justify-between">
-                    <span className="text-green-400">
-                      Réduction étudiant (−20%)
-                    </span>
-                    <span className="text-green-400">
-                      −{Math.round(originalPrice - totalPrice)} MAD
-                    </span>
+                    <span className="text-green-400">Réduction étudiant (−20%)</span>
+                    <span className="text-green-400">−{originalPrice - totalPrice} MAD</span>
                   </div>
                 )}
-                <div className="border-t border-white/10 pt-2 mt-2">
-                  <div className="flex justify-between">
-                    <span className="text-white font-bold">Total à payer</span>
-                    <span className="text-[#F4620A] text-2xl font-bold">
-                      {totalPrice} MAD
-                    </span>
-                  </div>
+                <div className="border-t border-white/10 pt-2 mt-2 flex justify-between">
+                  <span className="text-white font-bold">Total</span>
+                  <span className="text-[#F4620A] text-2xl font-bold">{totalPrice} MAD</span>
                 </div>
               </div>
             </div>
 
             {/* Boutons */}
-            <div className="flex gap-3 pt-4">
+            <div className="flex gap-3 pt-2">
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 px-4 py-3 rounded-xl border border-white/20 text-white hover:bg-white/5 transition-all font-medium"
+                className="flex-1 py-3 rounded-xl border border-white/20 text-white hover:bg-white/5 transition-all font-medium"
               >
                 Annuler
               </button>
               <button
-                type="submit"
-                disabled={loading}
-                className="flex-1 px-4 py-3 rounded-xl bg-gradient-to-r from-[#F4620A] to-[#C040E0] text-white font-medium hover:shadow-lg hover:scale-105 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                type="button"
+                onClick={handleSubmit}
+                disabled={loading || !selectedOption}
+                className="flex-1 py-3 rounded-xl bg-gradient-to-r from-[#F4620A] to-[#C040E0] text-white font-semibold hover:shadow-lg hover:scale-[1.02] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100"
               >
                 {loading ? (
-                  <>
-                    <Loader2 size={18} className="animate-spin" />
-                    <span>Confirmation...</span>
-                  </>
+                  <><Loader2 size={18} className="animate-spin" /> Confirmation...</>
                 ) : (
-                  <>
-                    <CreditCard size={18} />
-                    Confirmer la réservation
-                  </>
+                  <><CreditCard size={18} /> Confirmer la réservation</>
                 )}
               </button>
             </div>
-          </form>
-        ) : (
-          /* ── STEP 2 : Confirmation ── */
+          </div>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════════
+            ÉTAPE 3 — Confirmation
+        ════════════════════════════════════════════════════════════════════════*/}
+        {step === 3 && (
           <div className="p-6 text-center">
-            <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6 animate-bounce">
-              <CheckCircle size={40} className="text-green-400" />
+            <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+              <CheckCircle size={42} className="text-green-400" />
             </div>
 
-            <h4 className="text-2xl font-bold text-white mb-2">
-              Réservation confirmée !
-            </h4>
-            <p className="text-[#A0A0B8] mb-6">
-              Votre réservation a été créée avec succès. Un email de
-              confirmation a été envoyé à {formData.guest_email}.
+            <h4 className="text-2xl font-bold text-white mb-2">Réservation confirmée !</h4>
+            <p className="text-[#A0A0B8] mb-6 text-sm">
+              Un email de confirmation a été envoyé à{" "}
+              <span className="text-white font-medium">{formData.guest_email}</span>.
             </p>
 
             {bookingResult && (
-              <div className="bg-white/5 rounded-xl p-4 mb-6 text-left">
+              <div className="bg-white/5 rounded-xl p-4 mb-6 text-left space-y-2 text-sm">
                 <p className="text-white font-semibold mb-3 flex items-center gap-2">
-                  <Info size={18} className="text-[#F4620A]" />
-                  Détails de la réservation :
+                  <Info size={16} className="text-[#F4620A]" />
+                  Détails
                 </p>
-                <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-[#A0A0B8]">Espace</span>
+                  <span className="text-white">{spaceName}</span>
+                </div>
+                {hasRoomSizeOption && (
                   <div className="flex justify-between">
-                    <span className="text-[#A0A0B8]">Espace</span>
-                    <span className="text-white">{spaceName}</span>
-                  </div>
-                  {hasRoomSizeOption && (
-                    <div className="flex justify-between">
-                      <span className="text-[#A0A0B8]">Taille</span>
-                      <span className="text-white">
-                        {formData.room_size === "small"
-                          ? "Petite salle"
-                          : "Grande salle"}
-                      </span>
-                    </div>
-                  )}
-                  <div className="flex justify-between">
-                    <span className="text-[#A0A0B8]">Formule</span>
-                    <span className="text-white flex items-center gap-1">
-                      {getDurationIcon()}
-                      {getDurationLabel()}
+                    <span className="text-[#A0A0B8]">Salle</span>
+                    <span className="text-white">
+                      {roomSize === "small" ? "Petite salle" : "Grande salle"}
                     </span>
                   </div>
-                  {SHORT_DURATIONS.includes(formData.duration_type) ? (
-                    <>
-                      <div className="flex justify-between">
-                        <span className="text-[#A0A0B8]">Date</span>
-                        <span className="text-white">
-                          {new Date(formData.booking_date).toLocaleDateString(
-                            "fr-FR",
-                          )}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-[#A0A0B8]">Horaire</span>
-                        <span className="text-white">
-                          {formData.start_time}
-                        </span>
-                      </div>
-                    </>
-                  ) : (
+                )}
+                <div className="flex justify-between">
+                  <span className="text-[#A0A0B8]">Formule</span>
+                  <span className="text-white">
+                    {DURATION_META[selectedOption?.duration_type]?.label ?? "—"}
+                  </span>
+                </div>
+                {SHORT_DURATIONS.includes(selectedOption?.duration_type) ? (
+                  <>
                     <div className="flex justify-between">
-                      <span className="text-[#A0A0B8]">Période</span>
-                      <span className="text-white">
-                        Du{" "}
-                        {new Date(formData.start_date).toLocaleDateString(
-                          "fr-FR",
-                        )}{" "}
-                        au{" "}
-                        {new Date(formData.end_date).toLocaleDateString(
-                          "fr-FR",
-                        )}
-                      </span>
+                      <span className="text-[#A0A0B8]">Date</span>
+                      <span className="text-white">{formatDate(formData.booking_date)}</span>
                     </div>
-                  )}
-                  {formData.student_discount && isDiscountAllowed && (
                     <div className="flex justify-between">
-                      <span className="text-green-400">Réduction étudiant</span>
-                      <span className="text-green-400">−20%</span>
+                      <span className="text-[#A0A0B8]">Horaire</span>
+                      <span className="text-white">{formData.start_time}</span>
                     </div>
-                  )}
-                  <div className="border-t border-white/10 pt-2 mt-2">
-                    <div className="flex justify-between">
-                      <span className="text-white font-bold">Total payé</span>
-                      <span className="text-[#F4620A] text-xl font-bold">
-                        {totalPrice} MAD
-                      </span>
-                    </div>
+                  </>
+                ) : (
+                  <div className="flex justify-between">
+                    <span className="text-[#A0A0B8]">Période</span>
+                    <span className="text-white">
+                      Du {formatDate(formData.start_date)} au {formatDate(formData.end_date)}
+                    </span>
                   </div>
+                )}
+                {formData.student_discount && isDiscountAllowed && (
+                  <div className="flex justify-between">
+                    <span className="text-green-400">Réduction étudiant</span>
+                    <span className="text-green-400">−20%</span>
+                  </div>
+                )}
+                <div className="border-t border-white/10 pt-2 flex justify-between">
+                  <span className="text-white font-bold">Total</span>
+                  <span className="text-[#F4620A] text-xl font-bold">{totalPrice} MAD</span>
                 </div>
               </div>
             )}
 
             <button
               onClick={onClose}
-              className="w-full px-4 py-3 rounded-xl bg-gradient-to-r from-[#F4620A] to-[#C040E0] text-white font-medium hover:shadow-lg transition-all flex items-center justify-center gap-2"
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-[#F4620A] to-[#C040E0] text-white font-semibold hover:shadow-lg transition-all flex items-center justify-center gap-2"
             >
               <ShieldCheck size={18} />
               Fermer
