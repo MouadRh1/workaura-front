@@ -5,7 +5,7 @@ const nextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: 'mintcream-mink-168421.hostingersite.com',
+        hostname: 'saddlebrown-lion-880900.hostingersite.com',
       },
     ],
   },
