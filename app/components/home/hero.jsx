@@ -30,8 +30,8 @@ export default function Hero() {
             className="absolute top-0 left-0 w-full h-full object-cover"
             onError={() => setVideoError(true)}
           >
-            {/* Format MKV */}
-            <source src="/videos/hero.mkv" type="video/x-matroska" />
+            {/* Format mp4 */}
+            <source src="/videos/hero.mp4" type="video/mp4" />
             {/* Fallback image si la vidéo ne charge pas */}
             <img src="/images/hero-poster.png" alt="Workaura" className="w-full h-full object-cover" />
           </video>

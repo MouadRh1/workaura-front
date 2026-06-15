@@ -3,12 +3,12 @@ const nextConfig = {
   images: {
     remotePatterns: [
       {
-        protocol: 'https',
-        hostname: 'saddlebrown-lion-880900.hostingersite.com',
+        protocol: "https",
+        hostname: "saddlebrown-lion-880900.hostingersite.com",
       },
       {
-        protocol: 'https',
-        hostname: 'workaura.ma',
+        protocol: "https",
+        hostname: "workaura.ma",
       },
     ],
   },
@@ -17,22 +17,22 @@ const nextConfig = {
   async headers() {
     return [
       {
-        // Cache long terme pour les fichiers statiques Next.js (immutable)
-        source: '/_next/static/:path*',
+        // Fichiers statiques → cache long terme (immutable)
+        source: "/_next/static/:path*",
         headers: [
           {
-            key: 'Cache-Control',
-            value: 'public, max-age=31536000, immutable',
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
           },
         ],
       },
       {
-        // Pas de cache pour les pages HTML → toujours la version fraîche
-        source: '/:path*',
+        // Pages HTML → jamais cachées par le CDN
+        source: "/:path*",
         headers: [
           {
-            key: 'Cache-Control',
-            value: 'no-cache, no-store, must-revalidate',
+            key: "Cache-Control",
+            value: "no-store",
           },
         ],
       },
