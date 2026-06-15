@@ -86,7 +86,7 @@ export default function CTASection() {
           </Link>
           
           <Link 
-            href="https://wa.me/212600000000?text=Bonjour%2C%20je%20suis%20int%C3%A9ress%C3%A9%20par%20vos%20espaces%20de%20coworking"
+            href="https://wa.me/212665038838?text=Bonjour%2C%20je%20suis%20int%C3%A9ress%C3%A9%20par%20vos%20espaces%20de%20coworking"
             target="_blank"
             rel="noopener noreferrer"
           >

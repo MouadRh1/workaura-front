@@ -1,65 +1,90 @@
 // app/espaces/page.jsx
-'use client';
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { Users, Wifi, Monitor, ArrowRight, Loader2, CheckCircle, Clock, MapPin, Coffee, Maximize, Calendar } from 'lucide-react';
-import api from '../lib/api';
+"use client";
+import { useState, useEffect, useRef } from "react";
+import Link from "next/link";
+import { Users, ArrowRight, CheckCircle } from "lucide-react";
+import api from "../lib/api";
+import { useLoading } from "../components/ui/LoadingContext";
 
 export default function EspacesPage() {
   const [spaces, setSpaces] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('');
-  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
+  const [filter, setFilter] = useState("");
+  const [viewMode, setViewMode] = useState("grid");
+  const { register, markDone } = useLoading();
+
+  // Pour éviter de re-déclencher le loader global au changement de filtre
+  const initialLoadDone = useRef(false);
 
   useEffect(() => {
+    // On s'enregistre seulement au premier chargement
+    if (!initialLoadDone.current) {
+      register("espaces-page");
+    }
     fetchSpaces();
   }, [filter]);
 
   const fetchSpaces = async () => {
-    setLoading(true);
     try {
-      const url = filter ? `/spaces?type=${filter}` : '/spaces';
+      const url = filter ? `/spaces?type=${filter}` : "/spaces";
       const response = await api.get(url);
-      const spacesData = response.data.spaces?.data || response.data.spaces || [];
+      const spacesData =
+        response.data.spaces?.data || response.data.spaces || [];
       setSpaces(spacesData);
     } catch (err) {
-      console.error('Erreur chargement espaces:', err);
+      console.error("Erreur chargement espaces:", err);
     } finally {
-      setLoading(false);
+      // On marque done seulement au premier chargement
+      if (!initialLoadDone.current) {
+        initialLoadDone.current = true;
+        markDone("espaces-page");
+      }
     }
   };
 
   const getImageUrl = (path) => {
-    if (!path) return '/images/placeholder-space.jpg';
-    if (path.startsWith('http')) return path;
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'https://localhost:8000';
+    if (!path) return "/images/placeholder-space.jpg";
+    if (path.startsWith("http")) return path;
+    const baseUrl =
+      process.env.NEXT_PUBLIC_API_URL?.replace("/api", "") ||
+      "https://localhost:8000";
     return `${baseUrl}${path}`;
   };
 
   const getTypeLabel = (type) => {
     const types = {
-      private: 'Bureau Privé',
-      coworking: 'Coworking',
-      meeting: 'Salle de Réunion',
-      formation: 'Salle de Formation',
-      terrace: 'Terrasse',
+      private: "Bureau Privé",
+      coworking: "Coworking",
+      meeting: "Salle de Réunion",
+      formation: "Salle de Formation",
+      terrace: "Terrasse",
     };
     return types[type] || type;
   };
 
   const getStatusLabel = (status) => {
     const statuses = {
-      available: { label: 'Disponible', color: 'text-green-400 bg-green-400/10' },
-      occupied: { label: 'Occupé', color: 'text-yellow-400 bg-yellow-400/10' },
-      maintenance: { label: 'Maintenance', color: 'text-red-400 bg-red-400/10' },
+      available: {
+        label: "Disponible",
+        color: "text-green-400 bg-green-400/10",
+      },
+      occupied: { label: "Occupé", color: "text-yellow-400 bg-yellow-400/10" },
+      maintenance: {
+        label: "Maintenance",
+        color: "text-red-400 bg-red-400/10",
+      },
     };
-    return statuses[status] || { label: status, color: 'text-gray-400 bg-gray-400/10' };
+    return (
+      statuses[status] || {
+        label: status,
+        color: "text-gray-400 bg-gray-400/10",
+      }
+    );
   };
 
   const parseAmenities = (amenities) => {
     if (!amenities) return [];
     if (Array.isArray(amenities)) return amenities;
-    if (typeof amenities === 'string') {
+    if (typeof amenities === "string") {
       try {
         const parsed = JSON.parse(amenities);
         return Array.isArray(parsed) ? parsed : [];
@@ -71,39 +96,31 @@ export default function EspacesPage() {
   };
 
   const filters = [
-    { value: '', label: 'Tous' },
-    { value: 'private', label: 'Bureau Privé' },
-    { value: 'coworking', label: 'Coworking' },
-    { value: 'meeting', label: 'Salle de Réunion' },
-    { value: 'formation', label: 'Salle de Formation' },
+    { value: "", label: "Tous" },
+    { value: "private", label: "Bureau Privé" },
+    { value: "coworking", label: "Coworking" },
+    { value: "meeting", label: "Salle de Réunion" },
+    { value: "formation", label: "Salle de Formation" },
   ];
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#0A0A0F] pt-32 pb-12">
-        <div className="max-w-7xl mx-auto px-6 text-center">
-          <Loader2 size={48} className="mx-auto text-[#F4620A] animate-spin mb-4" />
-          <p className="text-white">Chargement des espaces...</p>
-        </div>
-      </div>
-    );
-  }
+  
 
   return (
-    <div className="min-h-screen bg-[#0A0A0F] pt-32 pb-12">
+    <div className="min-h-screen bg-[#0A0A0F] pt-10 pb-12">
       <div className="max-w-7xl mx-auto px-6">
         {/* Header */}
         <div className="text-center mb-12">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#F4620A]/10 border border-[#F4620A]/20 mb-6">
+          {/* <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#F4620A]/10 border border-[#F4620A]/20 mb-6">
             <span className="text-xs uppercase tracking-widest text-[#F4620A] font-medium">
               Nos espaces
             </span>
-          </div>
+          </div> */}
           <h1 className="text-5xl font-bold mb-4">
             Nos <span className="gradient-text">Espaces</span>
           </h1>
           <p className="text-[#A0A0B8] text-lg max-w-2xl mx-auto">
-            Trouvez l'espace parfait pour votre travail, que vous soyez en équipe ou en solo
+            Trouvez l'espace parfait pour votre travail, que vous soyez en
+            équipe ou en solo
           </p>
         </div>
 
@@ -116,8 +133,8 @@ export default function EspacesPage() {
                 onClick={() => setFilter(f.value)}
                 className={`px-5 py-2 rounded-full text-sm font-medium transition-all duration-300 ${
                   filter === f.value
-                    ? 'bg-gradient-to-r from-[#F4620A] to-[#C040E0] text-white shadow-lg'
-                    : 'bg-white/10 text-[#A0A0B8] hover:bg-white/20 hover:text-white'
+                    ? "bg-gradient-to-r from-[#F4620A] to-[#C040E0] text-white shadow-lg"
+                    : "bg-white/10 text-[#A0A0B8] hover:bg-white/20 hover:text-white"
                 }`}
               >
                 {f.label}
@@ -126,7 +143,7 @@ export default function EspacesPage() {
           </div>
 
           {/* View mode toggle */}
-          <div className="flex gap-2 bg-white/5 rounded-xl p-1">
+          {/* <div className="flex gap-2 bg-white/5 rounded-xl p-1">
             <button
               onClick={() => setViewMode('grid')}
               className={`px-4 py-2 rounded-lg text-sm transition-all ${
@@ -147,25 +164,25 @@ export default function EspacesPage() {
             >
               📋 Liste
             </button>
-          </div>
+          </div> */}
         </div>
 
         {/* Statistiques */}
-        {spaces.length > 0 && (
+        {/* {spaces.length > 0 && (
           <div className="flex justify-center gap-6 mb-8 text-sm text-[#A0A0B8]">
             <span>🏢 {spaces.length} espaces disponibles</span>
             <span>👥 {spaces.filter(s => s.status === 'available').length} disponibles</span>
           </div>
-        )}
+        )} */}
 
         {/* Espaces - Vue Grille */}
-        {viewMode === 'grid' && (
+        {viewMode === "grid" && (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
             {spaces.map((space) => {
               const amenities = parseAmenities(space.amenities);
               const displayFeatures = amenities.slice(0, 3);
               const status = getStatusLabel(space.status);
-              
+
               return (
                 <div
                   key={space.id}
@@ -178,7 +195,7 @@ export default function EspacesPage() {
                       alt={space.name}
                       className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
                       onError={(e) => {
-                        e.target.src = '/images/placeholder-space.jpg';
+                        e.target.src = "/images/placeholder-space.jpg";
                       }}
                     />
                     {/* Type Badge */}
@@ -203,13 +220,18 @@ export default function EspacesPage() {
                     {/* Features */}
                     <div className="flex flex-wrap items-center gap-4 mb-4">
                       {displayFeatures.map((feature, idx) => (
-                        <div key={idx} className="flex items-center gap-1.5 text-[#A0A0B8] text-xs">
+                        <div
+                          key={idx}
+                          className="flex items-center gap-1.5 text-[#A0A0B8] text-xs"
+                        >
                           <CheckCircle size={12} className="text-[#F4620A]" />
                           <span>{feature}</span>
                         </div>
                       ))}
                       {amenities.length > 3 && (
-                        <div className="text-xs text-[#A0A0B8]">+{amenities.length - 3}</div>
+                        <div className="text-xs text-[#A0A0B8]">
+                          +{amenities.length - 3}
+                        </div>
                       )}
                     </div>
 
@@ -248,12 +270,12 @@ export default function EspacesPage() {
         )}
 
         {/* Espaces - Vue Liste */}
-        {viewMode === 'list' && (
+        {viewMode === "list" && (
           <div className="space-y-4">
             {spaces.map((space) => {
               const amenities = parseAmenities(space.amenities);
               const status = getStatusLabel(space.status);
-              
+
               return (
                 <div
                   key={space.id}
@@ -267,10 +289,12 @@ export default function EspacesPage() {
                         alt={space.name}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                         onError={(e) => {
-                          e.target.src = '/images/placeholder-space.jpg';
+                          e.target.src = "/images/placeholder-space.jpg";
                         }}
                       />
-                      <div className={`absolute top-2 right-2 px-2 py-0.5 rounded-full text-xs font-medium ${status.color}`}>
+                      <div
+                        className={`absolute top-2 right-2 px-2 py-0.5 rounded-full text-xs font-medium ${status.color}`}
+                      >
                         {status.label}
                       </div>
                     </div>
@@ -280,7 +304,9 @@ export default function EspacesPage() {
                       <div className="flex flex-wrap items-start justify-between gap-4 mb-3">
                         <div>
                           <div className="flex items-center gap-2 mb-2">
-                            <h3 className="text-xl font-bold text-white">{space.name}</h3>
+                            <h3 className="text-xl font-bold text-white">
+                              {space.name}
+                            </h3>
                             <span className="px-2 py-0.5 rounded-full bg-white/10 text-[#A0A0B8] text-xs">
                               {getTypeLabel(space.type)}
                             </span>
@@ -306,13 +332,18 @@ export default function EspacesPage() {
                           </div>
                         )}
                         {amenities.slice(0, 4).map((feature, idx) => (
-                          <div key={idx} className="flex items-center gap-1.5 text-[#A0A0B8] text-xs">
+                          <div
+                            key={idx}
+                            className="flex items-center gap-1.5 text-[#A0A0B8] text-xs"
+                          >
                             <CheckCircle size={12} className="text-[#F4620A]" />
                             <span>{feature}</span>
                           </div>
                         ))}
                         {amenities.length > 4 && (
-                          <div className="text-xs text-[#A0A0B8]">+{amenities.length - 4}</div>
+                          <div className="text-xs text-[#A0A0B8]">
+                            +{amenities.length - 4}
+                          </div>
                         )}
                       </div>
 
@@ -336,9 +367,11 @@ export default function EspacesPage() {
         {spaces.length === 0 && (
           <div className="text-center py-20">
             <div className="text-6xl mb-4">🏢</div>
-            <p className="text-[#A0A0B8] text-lg">Aucun espace trouvé dans cette catégorie</p>
+            <p className="text-[#A0A0B8] text-lg">
+              Aucun espace trouvé dans cette catégorie
+            </p>
             <button
-              onClick={() => setFilter('')}
+              onClick={() => setFilter("")}
               className="mt-4 px-6 py-2 rounded-full bg-gradient-to-r from-[#F4620A] to-[#C040E0] text-white font-medium hover:shadow-lg transition-all"
             >
               Voir tous les espaces

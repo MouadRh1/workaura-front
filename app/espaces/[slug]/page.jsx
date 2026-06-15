@@ -1,6 +1,6 @@
 // app/espaces/[slug]/page.jsx
 "use client";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   Calendar,
@@ -25,8 +25,12 @@ import api from "../../lib/api";
 import Button from "../../components/ui/Button";
 import Link from "next/link";
 import ReservationModal from "../../components/ui/ReservationModal";
+import { useLoading } from "../../components/ui/LoadingContext";
 
 export default function SpaceDetailPage() {
+  const { register, markDone } = useLoading();
+  const initialLoadDone = useRef(false);
+
   const params = useParams();
   const router = useRouter();
   const [space, setSpace] = useState(null);
@@ -58,6 +62,12 @@ export default function SpaceDetailPage() {
   const fetchSpaceDetails = async () => {
     try {
       setLoading(true);
+
+      // Enregistrer seulement au premier chargement
+      if (!initialLoadDone.current) {
+        register("space-detail-page");
+      }
+
       const response = await api.get(`/spaces/${params.slug}`);
       setSpace(response.data.space);
       setAvailabilities(response.data.availabilities || []);
@@ -66,6 +76,12 @@ export default function SpaceDetailPage() {
       console.error("Erreur chargement:", error);
     } finally {
       setLoading(false);
+
+      // Marquer done seulement au premier chargement
+      if (!initialLoadDone.current) {
+        initialLoadDone.current = true;
+        markDone("space-detail-page");
+      }
     }
   };
 
@@ -181,17 +197,6 @@ export default function SpaceDetailPage() {
     }
     return images;
   }, [space?.featured_image, galleryImages]);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#0A0A0F] flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-[#F4620A]/30 border-t-[#F4620A] rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-white">Chargement des détails...</p>
-        </div>
-      </div>
-    );
-  }
 
   if (!space) {
     return (
@@ -410,7 +415,7 @@ export default function SpaceDetailPage() {
                   <Phone size={18} className="text-[#F4620A]" />
                   <div>
                     <p className="text-xs text-[#A0A0B8]">Téléphone</p>
-                    <p className="text-white font-medium">+212 5XX XXX XXX</p>
+                    <p className="text-white font-medium">+212 6 65 03 88 38</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 text-[#A0A0B8] bg-white/5 rounded-xl p-3">
@@ -418,7 +423,7 @@ export default function SpaceDetailPage() {
                   <div>
                     <p className="text-xs text-[#A0A0B8]">Email</p>
                     <p className="text-white font-medium">
-                      contact@workaura.com
+                      contact@workaura.ma
                     </p>
                   </div>
                 </div>
@@ -505,9 +510,13 @@ export default function SpaceDetailPage() {
                   et répondre à vos questions.
                 </p>
                 <div className="flex flex-col gap-2">
-                  <Button variant="outline" className="w-full text-sm">
-                    📞 Nous contacter
-                  </Button>
+                  <Link
+                    href="/contact"
+                    className="flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-xl border border-[#F4620A] text-[#F4620A] text-sm font-medium hover:bg-gradient-to-r hover:from-[#F4620A] hover:to-[#C040E0] hover:text-white hover:border-transparent transition-all duration-300"
+                  >
+                    <Phone size={15} />
+                    Nous contacter
+                  </Link>
                   <p className="text-xs text-[#A0A0B8]">
                     Réponse sous 24h | 7j/7
                   </p>
@@ -561,7 +570,7 @@ export default function SpaceDetailPage() {
         onClose={() => setIsReservationModalOpen(false)}
         spaceId={space.id}
         spaceName={space.name}
-        spaceType={space.type}  // ← AJOUTÉ : passage du type d'espace
+        spaceType={space.type} // ← AJOUTÉ : passage du type d'espace
         spacePrice={space.price}
       />
     </div>

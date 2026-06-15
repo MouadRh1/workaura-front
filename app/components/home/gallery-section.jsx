@@ -1,10 +1,7 @@
-// components/home/GallerySection.jsx
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import {
-  Maximize2,
-  Loader2,
   X,
   ChevronLeft,
   ChevronRight,
@@ -12,9 +9,16 @@ import {
   Share2,
   Heart,
   Calendar,
+  LayoutGrid,
+  Building2,
+  PartyPopper,
+  Users,
+  Camera,
+  ArrowRight,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../../lib/api';
+import { useLoading } from '../ui/LoadingContext';
 
 export function GallerySection() {
   const [images, setImages] = useState([]);
@@ -24,6 +28,8 @@ export function GallerySection() {
   const [currentImage, setCurrentImage] = useState(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [liked, setLiked] = useState(false);
+  const { markDone } = useLoading();
+  const initialFetchDone = useRef(false);
 
   useEffect(() => {
     fetchGalleryImages();
@@ -38,6 +44,10 @@ export function GallerySection() {
       console.error('Erreur chargement galerie:', error);
     } finally {
       setLoading(false);
+      if (!initialFetchDone.current) {
+        initialFetchDone.current = true;
+        markDone('gallery');
+      }
     }
   };
 
@@ -49,29 +59,29 @@ export function GallerySection() {
   };
 
   const categories = [
-    { value: 'all', label: 'Tous', icon: '🖼️' },
-    { value: 'space', label: 'Espaces', icon: '🏢' },
-    { value: 'event', label: 'Événements', icon: '🎉' },
-    { value: 'community', label: 'Communauté', icon: '👥' },
+    { value: 'all',       label: 'Tous',        icon: <LayoutGrid   size={15} aria-hidden="true" /> },
+    { value: 'space',     label: 'Espaces',     icon: <Building2    size={15} aria-hidden="true" /> },
+    { value: 'event',     label: 'Événements',  icon: <PartyPopper  size={15} aria-hidden="true" /> },
+    { value: 'community', label: 'Communauté',  icon: <Users        size={15} aria-hidden="true" /> },
   ];
 
   const getCategoryLabel = (category) => {
-    switch(category) {
-      case 'space': return { label: 'Espace', icon: '🏢', color: 'from-blue-500 to-cyan-500' };
-      case 'event': return { label: 'Événement', icon: '🎉', color: 'from-purple-500 to-pink-500' };
-      case 'community': return { label: 'Communauté', icon: '👥', color: 'from-green-500 to-emerald-500' };
-      default: return { label: category, icon: '📷', color: 'from-gray-500 to-gray-600' };
+    switch (category) {
+      case 'space':     return { label: 'Espace',     icon: <Building2   size={13} aria-hidden="true" />, color: 'from-blue-500 to-cyan-500'     };
+      case 'event':     return { label: 'Événement',  icon: <PartyPopper size={13} aria-hidden="true" />, color: 'from-purple-500 to-pink-500'   };
+      case 'community': return { label: 'Communauté', icon: <Users       size={13} aria-hidden="true" />, color: 'from-green-500 to-emerald-500' };
+      default:          return { label: category,     icon: <Camera      size={13} aria-hidden="true" />, color: 'from-gray-500 to-gray-600'     };
     }
   };
 
-  const filteredImages = selectedCategory === 'all' 
-    ? images 
+  const filteredImages = selectedCategory === 'all'
+    ? images
     : images.filter(img => img.category === selectedCategory);
 
   const largeImage = filteredImages[0];
   const smallImages = filteredImages.slice(1, 5);
 
-  const openLightbox = (image, index) => {
+  const openLightbox = (image) => {
     const actualIndex = filteredImages.findIndex(img => img.id === image.id);
     setCurrentImage(image);
     setCurrentIndex(actualIndex);
@@ -123,11 +133,7 @@ export function GallerySection() {
     const url = window.location.href;
     if (navigator.share) {
       try {
-        await navigator.share({
-          title: currentImage.title,
-          text: currentImage.description,
-          url: url,
-        });
+        await navigator.share({ title: currentImage.title, text: currentImage.description, url });
       } catch (err) {
         console.log('Partage annulé');
       }
@@ -149,12 +155,14 @@ export function GallerySection() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
 
-  if (loading) {
+  if (loading && images.length === 0) {
     return (
       <section id="galerie" className="py-24 px-6 bg-[#0A0A0F]">
-        <div className="max-w-[1440px] mx-auto text-center">
-          <Loader2 size={48} className="mx-auto text-[#F4620A] animate-spin mb-4" />
-          <p className="text-white">Chargement de la galerie...</p>
+        <div className="max-w-[1440px] mx-auto grid grid-cols-2 lg:grid-cols-4 gap-4 auto-rows-[240px]">
+          <div className="col-span-2 row-span-2 bg-white/5 rounded-[20px] animate-pulse" />
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className="bg-white/5 rounded-[20px] animate-pulse" />
+          ))}
         </div>
       </section>
     );
@@ -166,6 +174,7 @@ export function GallerySection() {
     <>
       <section id="galerie" className="py-24 px-6 bg-[#0A0A0F]">
         <div className="max-w-[1440px] mx-auto">
+
           {/* Section Header */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -202,13 +211,13 @@ export function GallerySection() {
               <button
                 key={cat.value}
                 onClick={() => setSelectedCategory(cat.value)}
-                className={`px-5 py-2 rounded-full text-sm font-medium transition-all duration-300 flex items-center gap-2 ${
+                className={`flex items-center gap-2 px-5 py-2 rounded-full text-sm font-medium transition-all duration-300 ${
                   selectedCategory === cat.value
                     ? 'bg-gradient-to-r from-[#F4620A] to-[#C040E0] text-white shadow-lg'
                     : 'bg-white/10 text-[#A0A0B8] hover:bg-white/20 hover:text-white'
                 }`}
               >
-                <span>{cat.icon}</span>
+                {cat.icon}
                 {cat.label}
               </button>
             ))}
@@ -228,7 +237,7 @@ export function GallerySection() {
                 <motion.div
                   whileHover={{ y: -5 }}
                   className="relative col-span-2 row-span-2 group rounded-[20px] overflow-hidden cursor-pointer"
-                  onClick={() => openLightbox(largeImage, 0)}
+                  onClick={() => openLightbox(largeImage)}
                 >
                   <div className="relative w-full h-full min-h-[500px]">
                     <img
@@ -237,27 +246,31 @@ export function GallerySection() {
                       className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                     />
                   </div>
+                  {/* Overlay hover */}
                   <div className="absolute inset-0 bg-gradient-to-t from-[#0A0A0F]/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end justify-center p-6">
                     <div className="text-center">
                       <p className="text-white text-lg font-semibold">{largeImage.title}</p>
-                      <p className="text-white/70 text-sm">
-                        {largeImage.category === 'space' ? '🏢 Espace' : largeImage.category === 'event' ? '🎉 Événement' : '👥 Communauté'}
+                      <p className="text-white/70 text-sm flex items-center justify-center gap-1">
+                        {getCategoryLabel(largeImage.category).icon}
+                        {getCategoryLabel(largeImage.category).label}
                       </p>
                     </div>
                   </div>
-                  <div className="absolute top-4 right-4 px-2 py-1 rounded-full bg-black/60 backdrop-blur-sm text-white text-xs">
-                    {largeImage.category === 'space' ? '🏢 Espace' : largeImage.category === 'event' ? '🎉 Événement' : '👥 Communauté'}
+                  {/* Badge top-right */}
+                  <div className="absolute top-4 right-4 flex items-center gap-1 px-2 py-1 rounded-full bg-black/60 backdrop-blur-sm text-white text-xs">
+                    {getCategoryLabel(largeImage.category).icon}
+                    {getCategoryLabel(largeImage.category).label}
                   </div>
                 </motion.div>
               )}
 
               {/* Small Images */}
-              {smallImages.map((image, idx) => (
+              {smallImages.map((image) => (
                 <motion.div
                   key={image.id}
                   whileHover={{ y: -5 }}
                   className="relative group rounded-[20px] overflow-hidden h-[240px] cursor-pointer"
-                  onClick={() => openLightbox(image, idx + 1)}
+                  onClick={() => openLightbox(image)}
                 >
                   <div className="relative w-full h-full">
                     <img
@@ -266,16 +279,19 @@ export function GallerySection() {
                       className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                     />
                   </div>
+                  {/* Overlay hover */}
                   <div className="absolute inset-0 bg-gradient-to-t from-[#0A0A0F]/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end justify-center p-4">
                     <div className="text-center">
                       <p className="text-white text-sm font-semibold">{image.title}</p>
-                      <p className="text-white/70 text-xs">
-                        {image.category === 'space' ? '🏢 Espace' : image.category === 'event' ? '🎉 Événement' : '👥 Communauté'}
+                      <p className="text-white/70 text-xs flex items-center justify-center gap-1">
+                        {getCategoryLabel(image.category).icon}
+                        {getCategoryLabel(image.category).label}
                       </p>
                     </div>
                   </div>
-                  <div className="absolute top-3 right-3 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-sm text-white text-[10px]">
-                    {image.category === 'space' ? '🏢' : image.category === 'event' ? '🎉' : '👥'}
+                  {/* Badge top-right (icône seule pour les petites cartes) */}
+                  <div className="absolute top-3 right-3 flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-sm text-white text-[10px]">
+                    {getCategoryLabel(image.category).icon}
                   </div>
                 </motion.div>
               ))}
@@ -290,15 +306,16 @@ export function GallerySection() {
           <div className="text-center mt-12">
             <Link
               href="/galerie"
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl border border-[#F4620A] text-[#F4620A] hover:bg-gradient-to-r hover:from-[#F4620A] hover:to-[#C040E0] hover:text-white hover:border-transparent transition-all duration-300 font-medium"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl border border-[#F4620A] text-[#F4620A] hover:bg-gradient-to-r hover:from-[#F4620A] hover:to-[#C040E0] hover:text-white hover:border-transparent transition-all duration-300 font-medium group"
             >
-              Voir toute la galerie →
+              Voir toute la galerie
+              <ArrowRight size={18} aria-hidden="true" className="group-hover:translate-x-1 transition-transform" />
             </Link>
           </div>
         </div>
       </section>
 
-      {/* Lightbox Modal Moderne */}
+      {/* Lightbox */}
       <AnimatePresence>
         {lightboxOpen && currentImage && (
           <motion.div
@@ -308,7 +325,6 @@ export function GallerySection() {
             className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center"
             onClick={closeLightbox}
           >
-            {/* Bouton fermer */}
             <button
               onClick={closeLightbox}
               className="absolute top-4 right-4 z-10 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-all"
@@ -316,7 +332,6 @@ export function GallerySection() {
               <X size={24} />
             </button>
 
-            {/* Navigation précédente */}
             {currentIndex > 0 && (
               <button
                 onClick={(e) => { e.stopPropagation(); goToPrevious(); }}
@@ -326,7 +341,6 @@ export function GallerySection() {
               </button>
             )}
 
-            {/* Navigation suivante */}
             {currentIndex < filteredImages.length - 1 && (
               <button
                 onClick={(e) => { e.stopPropagation(); goToNext(); }}
@@ -336,9 +350,7 @@ export function GallerySection() {
               </button>
             )}
 
-            {/* Contenu principal */}
             <div className="relative max-w-6xl max-h-[90vh] mx-auto p-4" onClick={(e) => e.stopPropagation()}>
-              {/* Image */}
               <motion.div
                 key={currentImage.id}
                 initial={{ scale: 0.9, opacity: 0 }}
@@ -352,14 +364,11 @@ export function GallerySection() {
                   alt={currentImage.title}
                   className="max-w-full max-h-[75vh] object-contain rounded-lg"
                 />
-                
-                {/* Indicateur de progression */}
                 <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-sm px-3 py-1 rounded-full text-white text-sm">
                   {currentIndex + 1} / {filteredImages.length}
                 </div>
               </motion.div>
 
-              {/* Panneau d'informations */}
               <motion.div
                 initial={{ y: 50, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
@@ -370,8 +379,9 @@ export function GallerySection() {
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
                       {categoryInfo && (
-                        <span className={`text-xs px-2 py-1 rounded-full bg-gradient-to-r ${categoryInfo.color} text-white`}>
-                          {categoryInfo.icon} {categoryInfo.label}
+                        <span className={`flex items-center gap-1 text-xs px-2 py-1 rounded-full bg-gradient-to-r ${categoryInfo.color} text-white`}>
+                          {categoryInfo.icon}
+                          {categoryInfo.label}
                         </span>
                       )}
                       <span className="text-xs text-white/50 flex items-center gap-1">
@@ -384,24 +394,14 @@ export function GallerySection() {
                       <p className="text-white/70 text-sm mt-1 line-clamp-2">{currentImage.description}</p>
                     )}
                   </div>
-                  
                   <div className="flex gap-2">
-                    <button
-                      onClick={() => setLiked(!liked)}
-                      className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-all"
-                    >
+                    <button onClick={() => setLiked(!liked)} className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-all">
                       <Heart size={20} className={liked ? 'fill-red-500 text-red-500' : 'text-white'} />
                     </button>
-                    <button
-                      onClick={handleDownload}
-                      className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-all"
-                    >
+                    <button onClick={handleDownload} className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-all">
                       <Download size={20} className="text-white" />
                     </button>
-                    <button
-                      onClick={handleShare}
-                      className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-all"
-                    >
+                    <button onClick={handleShare} className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-all">
                       <Share2 size={20} className="text-white" />
                     </button>
                   </div>
@@ -409,7 +409,6 @@ export function GallerySection() {
               </motion.div>
             </div>
 
-            {/* Indicateur de navigation clavier */}
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/40 text-xs flex gap-4">
               <span>← → pour naviguer</span>
               <span>ESC pour fermer</span>

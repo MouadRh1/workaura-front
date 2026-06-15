@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 export default function FloatingWhatsApp() {
 //   const [isVisible, setIsVisible] = useState(false);
 
-  const phoneNumber = '212613256977';
+  const phoneNumber = '212665038838';
   const message = encodeURIComponent(
     'Bonjour, je suis intéressé par vos espaces de coworking.'
   );

@@ -156,10 +156,10 @@ export default function Footer() {
               <li className="flex items-center justify-center md:justify-start gap-2 text-[#A0A0B8] text-sm">
                 <Phone size={14} className="text-[#F4620A] flex-shrink-0" />
                 <a
-                  href="tel:+212600000000"
+                  href="tel:+212665038838"
                   className="hover:text-white transition-colors"
                 >
-                  +212 6 00 00 00 00
+                  +212 6 65 03 88 38
                 </a>
               </li>
               <li className="flex items-center justify-center md:justify-start gap-2 text-[#A0A0B8] text-sm">
@@ -168,7 +168,7 @@ export default function Footer() {
                   href="mailto:contact@workaura.com"
                   className="hover:text-white transition-colors"
                 >
-                  contact@workaura.com
+                  contact@workaura.ma
                 </a>
               </li>
             </ul>

@@ -160,7 +160,7 @@ export default function ContactPage() {
                 href="tel:+212600000000"
                 className="hover:text-[#F4620A] transition-colors"
               >
-                +212 6 00 00 00 00
+                +212 6 65 03 88 38
               </a>
             </InfoCard>
 

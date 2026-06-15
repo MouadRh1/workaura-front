@@ -1,7 +1,7 @@
-'use client'
-import { useState, useEffect } from 'react';
-import Link from 'next/link'
-import { ChevronDown, Image } from 'lucide-react';
+"use client";
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import { ChevronDown, Image } from "lucide-react";
 
 export default function Hero() {
   const [isMobile, setIsMobile] = useState(false);
@@ -12,8 +12,8 @@ export default function Hero() {
       setIsMobile(window.innerWidth < 768);
     };
     checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
   return (
@@ -33,18 +33,26 @@ export default function Hero() {
             {/* Format mp4 */}
             <source src="/videos/hero.mp4" type="video/mp4" />
             {/* Fallback image si la vidéo ne charge pas */}
-            <img src="/images/hero-poster.png" alt="Workaura" className="w-full h-full object-cover" />
+            <img
+              src="/images/hero-poster.png"
+              alt="Workaura"
+              className="w-full h-full object-cover"
+            />
           </video>
         ) : (
           <div className="absolute inset-0 bg-gradient-to-br from-[#0A0A0F] to-[#1A1A2E]" />
         )}
-        
+
         {/* Dark Overlay - plus léger sur mobile */}
-        <div className={`absolute inset-0 z-10 ${isMobile ? 'bg-black/70' : 'bg-black/60'}`} />
+        <div
+          className={`absolute inset-0 z-10 ${isMobile ? "bg-black/70" : "bg-black/60"}`}
+        />
       </div>
 
       {/* Background Gradient - réduit sur mobile */}
-      <div className={`absolute inset-0 bg-gradient-to-b from-[#0A0A0F]/30 to-[#0A0A0F]/90 z-10 ${isMobile ? 'opacity-80' : ''}`} />
+      <div
+        className={`absolute inset-0 bg-gradient-to-b from-[#0A0A0F]/30 to-[#0A0A0F]/90 z-10 ${isMobile ? "opacity-80" : ""}`}
+      />
 
       {/* Animated Background Mesh - réduit/désactivé sur mobile */}
       {!isMobile && (
@@ -68,8 +76,9 @@ export default function Hero() {
 
         {/* Subtitle - Texte plus petit sur mobile */}
         <p className="max-w-[90%] sm:max-w-[580px] mx-auto text-sm sm:text-base md:text-lg text-white/80 mb-6 sm:mb-10 drop-shadow-lg px-2">
-          Bureaux privés, espaces coworking, salles de formation & salles de réunion premium à Témara.
-          Rejoignez une communauté d'entrepreneurs ambitieux.
+          Bureaux privés, espaces coworking, salles de formation & salles de
+          réunion premium à Témara. Rejoignez une communauté d'entrepreneurs
+          ambitieux.
         </p>
 
         {/* CTA Buttons - Réduits sur mobile */}
@@ -80,13 +89,13 @@ export default function Hero() {
           >
             Découvrir les espaces →
           </Link>
-          <Link 
-            href="/galerie" 
+          <a
+            href="/galerie"
             className="px-6 sm:px-8 py-3 sm:py-4 rounded-full border border-white/30 bg-white/10 backdrop-blur-sm text-white font-medium text-sm sm:text-base hover:bg-white/20 transition-all duration-300 flex items-center justify-center gap-2 w-full sm:w-auto"
           >
-            <Image size={18} /> 
-            Voir galerie
-          </Link>
+            <Image size={18} aria-hidden="true" />
+            <span>Voir la galerie</span>
+          </a>
         </div>
 
         {/* Stats - Grille responsive */}
@@ -107,9 +116,11 @@ export default function Hero() {
           <div className="hidden sm:block w-px h-8 sm:h-12 bg-white/20" />
           <div className="flex flex-col">
             <span className="text-xl sm:text-2xl md:text-3xl font-bold gradient-text">
-              4
+              5
             </span>
-            <span className="text-xs sm:text-sm text-white/70">Types d'espaces</span>
+            <span className="text-xs sm:text-sm text-white/70">
+              Types d'espaces
+            </span>
           </div>
           <div className="hidden sm:block w-px h-8 sm:h-12 bg-white/20" />
           <div className="flex flex-col">
@@ -123,14 +134,23 @@ export default function Hero() {
 
       {/* Scroll Indicator - Plus petit sur mobile */}
       <div className="absolute bottom-4 sm:bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 sm:gap-2 z-20 animate-bounce">
-        <span className="text-[10px] sm:text-xs uppercase tracking-widest text-white/60">Découvrir</span>
+        <span className="text-[10px] sm:text-xs uppercase tracking-widest text-white/60">
+          Découvrir
+        </span>
         <ChevronDown size={16} className="sm:w-5 sm:h-5 text-white/60" />
       </div>
 
       <style jsx>{`
         @keyframes pulse-slow {
-          0%, 100% { opacity: 0.3; transform: scale(1); }
-          50% { opacity: 0.6; transform: scale(1.1); }
+          0%,
+          100% {
+            opacity: 0.3;
+            transform: scale(1);
+          }
+          50% {
+            opacity: 0.6;
+            transform: scale(1.1);
+          }
         }
         .animate-pulse-slow {
           animation: pulse-slow 6s ease-in-out infinite;
@@ -139,7 +159,7 @@ export default function Hero() {
           animation-delay: 1s;
         }
         .gradient-text {
-          background: linear-gradient(135deg, #F4620A, #9B1FD4);
+          background: linear-gradient(135deg, #f4620a, #9b1fd4);
           -webkit-background-clip: text;
           background-clip: text;
           color: transparent;
