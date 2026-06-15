@@ -3,13 +3,14 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Mail, Lock, Eye, EyeOff, User, Phone, UserPlus, AlertCircle } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, User, Phone, UserPlus, AlertCircle, Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import api from '../lib/api';
+import AuthGuard from '../components/AuthGuard';
 
-export default function RegisterPage() {
+function RegisterForm() {
   const router = useRouter();
-  const { updateUser } = useAuth(); // ✅ updateUser pour mettre à jour le contexte
+  const { updateUser } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [showPasswordConfirmation, setShowPasswordConfirmation] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -63,14 +64,9 @@ export default function RegisterPage() {
       });
 
       if (response.data.token) {
-        // ✅ Stocker le token
         localStorage.setItem('token', response.data.token);
         localStorage.setItem('user', JSON.stringify(response.data.user));
-
-        // ✅ Mettre à jour le contexte Auth → connecté automatiquement
         updateUser(response.data.user);
-
-        // ✅ Redirection sans rechargement
         router.push('/');
       }
     } catch (error) {
@@ -89,26 +85,21 @@ export default function RegisterPage() {
   return (
     <div className="min-h-screen bg-[#0A0A0F] flex items-center justify-center px-4 py-24">
       {/* Background decoration */}
-      <div className="absolute inset-0 overflow-hidden">
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-20 left-10 w-72 h-72 bg-[#F4620A]/20 rounded-full blur-[100px] animate-pulse" />
         <div className="absolute bottom-20 right-10 w-96 h-96 bg-[#9B1FD4]/20 rounded-full blur-[100px] animate-pulse delay-700" />
       </div>
 
       <div className="relative z-10 w-full max-w-md">
-        {/* Logo */}
+        {/* Logo supprimé */}
         <div className="text-center mb-8">
-          <div className="flex justify-center mb-4">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#F4620A] to-[#9B1FD4] flex items-center justify-center shadow-lg">
-              <span className="text-white font-bold text-2xl">WA</span>
-            </div>
-          </div>
           <h2 className="text-3xl font-bold text-white mb-2">Créer un compte</h2>
           <p className="text-[#A0A0B8]">Rejoignez la communauté Workaura</p>
         </div>
 
         {/* Register Card */}
-        <div className="glass-effect rounded-2xl p-8">
-          <form onSubmit={handleSubmit} className="space-y-5">
+        <div className="bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 p-6 sm:p-8">
+          <form onSubmit={handleSubmit} className="space-y-5" noValidate>
             {/* Erreur générale */}
             {errors.general && (
               <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 flex items-center gap-2 animate-in fade-in duration-200">
@@ -120,7 +111,7 @@ export default function RegisterPage() {
             {/* Nom complet */}
             <div>
               <label className="block text-white text-sm font-medium mb-2">
-                Nom complet
+                Nom complet *
               </label>
               <div className="relative">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 text-[#A0A0B8] w-5 h-5" />
@@ -136,6 +127,7 @@ export default function RegisterPage() {
                   }`}
                   placeholder="Jean Dupont"
                   disabled={isLoading}
+                  required
                 />
               </div>
               {errors.name && <p className="text-red-400 text-xs mt-1">{errors.name}</p>}
@@ -144,7 +136,7 @@ export default function RegisterPage() {
             {/* Email */}
             <div>
               <label className="block text-white text-sm font-medium mb-2">
-                Email
+                Email *
               </label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-[#A0A0B8] w-5 h-5" />
@@ -160,6 +152,7 @@ export default function RegisterPage() {
                   }`}
                   placeholder="jean@email.com"
                   disabled={isLoading}
+                  required
                 />
               </div>
               {errors.email && <p className="text-red-400 text-xs mt-1">{errors.email}</p>}
@@ -187,7 +180,7 @@ export default function RegisterPage() {
             {/* Mot de passe */}
             <div>
               <label className="block text-white text-sm font-medium mb-2">
-                Mot de passe
+                Mot de passe *
               </label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-[#A0A0B8] w-5 h-5" />
@@ -203,6 +196,7 @@ export default function RegisterPage() {
                   }`}
                   placeholder="••••••••"
                   disabled={isLoading}
+                  required
                 />
                 <button
                   type="button"
@@ -219,7 +213,7 @@ export default function RegisterPage() {
             {/* Confirmation mot de passe */}
             <div>
               <label className="block text-white text-sm font-medium mb-2">
-                Confirmer le mot de passe
+                Confirmer le mot de passe *
               </label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-[#A0A0B8] w-5 h-5" />
@@ -235,6 +229,7 @@ export default function RegisterPage() {
                   }`}
                   placeholder="••••••••"
                   disabled={isLoading}
+                  required
                 />
                 <button
                   type="button"
@@ -257,7 +252,7 @@ export default function RegisterPage() {
             >
               {isLoading ? (
                 <>
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <Loader2 size={18} className="animate-spin" />
                   <span>Création du compte...</span>
                 </>
               ) : (
@@ -281,5 +276,14 @@ export default function RegisterPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// ✅ Wrapper avec AuthGuard
+export default function RegisterPage() {
+  return (
+    <AuthGuard>
+      <RegisterForm />
+    </AuthGuard>
   );
 }

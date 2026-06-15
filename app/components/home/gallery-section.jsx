@@ -1,14 +1,29 @@
 // components/home/GallerySection.jsx
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { Maximize2, Loader2 } from 'lucide-react';
+import {
+  Maximize2,
+  Loader2,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  Share2,
+  Heart,
+  Calendar,
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import api from '../../lib/api';
 
 export function GallerySection() {
   const [images, setImages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [currentImage, setCurrentImage] = useState(null);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [liked, setLiked] = useState(false);
 
   useEffect(() => {
     fetchGalleryImages();
@@ -34,11 +49,20 @@ export function GallerySection() {
   };
 
   const categories = [
-    { value: 'all', label: 'Tous' },
-    { value: 'space', label: 'Espaces' },
-    { value: 'event', label: 'Événements' },
-    { value: 'community', label: 'Communauté' },
+    { value: 'all', label: 'Tous', icon: '🖼️' },
+    { value: 'space', label: 'Espaces', icon: '🏢' },
+    { value: 'event', label: 'Événements', icon: '🎉' },
+    { value: 'community', label: 'Communauté', icon: '👥' },
   ];
+
+  const getCategoryLabel = (category) => {
+    switch(category) {
+      case 'space': return { label: 'Espace', icon: '🏢', color: 'from-blue-500 to-cyan-500' };
+      case 'event': return { label: 'Événement', icon: '🎉', color: 'from-purple-500 to-pink-500' };
+      case 'community': return { label: 'Communauté', icon: '👥', color: 'from-green-500 to-emerald-500' };
+      default: return { label: category, icon: '📷', color: 'from-gray-500 to-gray-600' };
+    }
+  };
 
   const filteredImages = selectedCategory === 'all' 
     ? images 
@@ -46,6 +70,84 @@ export function GallerySection() {
 
   const largeImage = filteredImages[0];
   const smallImages = filteredImages.slice(1, 5);
+
+  const openLightbox = (image, index) => {
+    const actualIndex = filteredImages.findIndex(img => img.id === image.id);
+    setCurrentImage(image);
+    setCurrentIndex(actualIndex);
+    setLightboxOpen(true);
+    document.body.style.overflow = 'hidden';
+  };
+
+  const closeLightbox = () => {
+    setLightboxOpen(false);
+    setCurrentImage(null);
+    document.body.style.overflow = 'auto';
+  };
+
+  const goToPrevious = () => {
+    if (currentIndex > 0) {
+      setCurrentImage(filteredImages[currentIndex - 1]);
+      setCurrentIndex(currentIndex - 1);
+    }
+  };
+
+  const goToNext = () => {
+    if (currentIndex < filteredImages.length - 1) {
+      setCurrentImage(filteredImages[currentIndex + 1]);
+      setCurrentIndex(currentIndex + 1);
+    }
+  };
+
+  const handleDownload = async () => {
+    if (!currentImage) return;
+    const imageUrl = getImageUrl(currentImage.image_path || currentImage.imageUrl);
+    try {
+      const response = await fetch(imageUrl);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = currentImage.title || 'image';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Erreur téléchargement:', err);
+    }
+  };
+
+  const handleShare = async () => {
+    if (!currentImage) return;
+    const url = window.location.href;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: currentImage.title,
+          text: currentImage.description,
+          url: url,
+        });
+      } catch (err) {
+        console.log('Partage annulé');
+      }
+    } else {
+      navigator.clipboard.writeText(url);
+      alert('Lien copié dans le presse-papier !');
+    }
+  };
+
+  const handleKeyDown = useCallback((e) => {
+    if (!lightboxOpen) return;
+    if (e.key === 'ArrowLeft') goToPrevious();
+    if (e.key === 'ArrowRight') goToNext();
+    if (e.key === 'Escape') closeLightbox();
+  }, [lightboxOpen, currentIndex, filteredImages]);
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
 
   if (loading) {
     return (
@@ -58,114 +160,263 @@ export function GallerySection() {
     );
   }
 
+  const categoryInfo = currentImage ? getCategoryLabel(currentImage.category) : null;
+
   return (
-    <section id="galerie" className="py-24 px-6 bg-[#0A0A0F]">
-      <div className="max-w-[1440px] mx-auto">
-        {/* Section Header */}
-        <div className="text-center mb-16">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#F4620A]/10 border border-[#F4620A]/20 mb-6">
-            <span className="text-xs uppercase tracking-widest text-[#F4620A] font-medium">
-              Galerie
-            </span>
-          </div>
-          <h2 className="text-5xl font-bold text-white leading-tight">
-            Découvrez notre{' '}
-            <span className="bg-gradient-to-r from-[#F4620A] to-[#9B1FD4] bg-clip-text text-transparent">
-              espace unique
-            </span>
-          </h2>
-          <p className="text-[#A0A0B8] mt-4 max-w-2xl mx-auto">
-            Explorez nos espaces modernes et inspirants à travers notre galerie d'images
-          </p>
-        </div>
+    <>
+      <section id="galerie" className="py-24 px-6 bg-[#0A0A0F]">
+        <div className="max-w-[1440px] mx-auto">
+          {/* Section Header */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            viewport={{ once: true }}
+            className="text-center mb-16"
+          >
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#F4620A]/10 border border-[#F4620A]/20 mb-6">
+              <span className="text-xs uppercase tracking-widest text-[#F4620A] font-medium">
+                Galerie
+              </span>
+            </div>
+            <h2 className="text-5xl font-bold text-white leading-tight">
+              Découvrez notre{' '}
+              <span className="bg-gradient-to-r from-[#F4620A] to-[#9B1FD4] bg-clip-text text-transparent">
+                espace unique
+              </span>
+            </h2>
+            <p className="text-[#A0A0B8] mt-4 max-w-2xl mx-auto">
+              Explorez nos espaces modernes et inspirants à travers notre galerie d'images
+            </p>
+          </motion.div>
 
-        {/* Filtres */}
-        <div className="flex flex-wrap justify-center gap-3 mb-10">
-          {categories.map((cat) => (
-            <button
-              key={cat.value}
-              onClick={() => setSelectedCategory(cat.value)}
-              className={`px-5 py-2 rounded-full transition-all duration-300 ${
-                selectedCategory === cat.value
-                  ? 'bg-gradient-to-r from-[#F4620A] to-[#C040E0] text-white'
-                  : 'bg-white/10 text-[#A0A0B8] hover:bg-white/20'
-              }`}
-            >
-              {cat.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Masonry Grid */}
-        {filteredImages.length > 0 ? (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 auto-rows-[240px]">
-            {/* Large Image */}
-            {largeImage && (
-              <Link 
-                href={`/galerie/${largeImage.id || largeImage.slug}`}
-                className="relative col-span-2 row-span-2 group rounded-[20px] overflow-hidden cursor-pointer block"
+          {/* Filtres */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+            viewport={{ once: true }}
+            className="flex flex-wrap justify-center gap-3 mb-10"
+          >
+            {categories.map((cat) => (
+              <button
+                key={cat.value}
+                onClick={() => setSelectedCategory(cat.value)}
+                className={`px-5 py-2 rounded-full text-sm font-medium transition-all duration-300 flex items-center gap-2 ${
+                  selectedCategory === cat.value
+                    ? 'bg-gradient-to-r from-[#F4620A] to-[#C040E0] text-white shadow-lg'
+                    : 'bg-white/10 text-[#A0A0B8] hover:bg-white/20 hover:text-white'
+                }`}
               >
-                <div className="relative w-full h-full min-h-[500px]">
-                  <img
-                    src={getImageUrl(largeImage.image_path || largeImage.imageUrl)}
-                    alt={largeImage.title}
-                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                  />
-                </div>
-                <div className="absolute inset-0 bg-gradient-to-t from-[#0A0A0F]/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-                  <div className="text-center">
-                    <Maximize2 size={32} className="text-white mb-2 mx-auto" />
-                    <span className="text-white text-sm font-medium block">{largeImage.title}</span>
-                    <span className="text-white/70 text-xs">
-                      {largeImage.category === 'space' ? 'Espace' : largeImage.category === 'event' ? 'Événement' : 'Communauté'}
-                    </span>
+                <span>{cat.icon}</span>
+                {cat.label}
+              </button>
+            ))}
+          </motion.div>
+
+          {/* Masonry Grid */}
+          {filteredImages.length > 0 ? (
+            <motion.div
+              initial={{ opacity: 0 }}
+              whileInView={{ opacity: 1 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+              viewport={{ once: true }}
+              className="grid grid-cols-2 lg:grid-cols-4 gap-4 auto-rows-[240px]"
+            >
+              {/* Large Image */}
+              {largeImage && (
+                <motion.div
+                  whileHover={{ y: -5 }}
+                  className="relative col-span-2 row-span-2 group rounded-[20px] overflow-hidden cursor-pointer"
+                  onClick={() => openLightbox(largeImage, 0)}
+                >
+                  <div className="relative w-full h-full min-h-[500px]">
+                    <img
+                      src={getImageUrl(largeImage.image_path || largeImage.imageUrl)}
+                      alt={largeImage.title}
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                    />
                   </div>
-                </div>
-              </Link>
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#0A0A0F]/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end justify-center p-6">
+                    <div className="text-center">
+                      <p className="text-white text-lg font-semibold">{largeImage.title}</p>
+                      <p className="text-white/70 text-sm">
+                        {largeImage.category === 'space' ? '🏢 Espace' : largeImage.category === 'event' ? '🎉 Événement' : '👥 Communauté'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="absolute top-4 right-4 px-2 py-1 rounded-full bg-black/60 backdrop-blur-sm text-white text-xs">
+                    {largeImage.category === 'space' ? '🏢 Espace' : largeImage.category === 'event' ? '🎉 Événement' : '👥 Communauté'}
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Small Images */}
+              {smallImages.map((image, idx) => (
+                <motion.div
+                  key={image.id}
+                  whileHover={{ y: -5 }}
+                  className="relative group rounded-[20px] overflow-hidden h-[240px] cursor-pointer"
+                  onClick={() => openLightbox(image, idx + 1)}
+                >
+                  <div className="relative w-full h-full">
+                    <img
+                      src={getImageUrl(image.image_path || image.imageUrl)}
+                      alt={image.title}
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                    />
+                  </div>
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#0A0A0F]/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end justify-center p-4">
+                    <div className="text-center">
+                      <p className="text-white text-sm font-semibold">{image.title}</p>
+                      <p className="text-white/70 text-xs">
+                        {image.category === 'space' ? '🏢 Espace' : image.category === 'event' ? '🎉 Événement' : '👥 Communauté'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="absolute top-3 right-3 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-sm text-white text-[10px]">
+                    {image.category === 'space' ? '🏢' : image.category === 'event' ? '🎉' : '👥'}
+                  </div>
+                </motion.div>
+              ))}
+            </motion.div>
+          ) : (
+            <div className="text-center py-12">
+              <p className="text-[#A0A0B8]">Aucune image trouvée dans cette catégorie</p>
+            </div>
+          )}
+
+          {/* CTA */}
+          <div className="text-center mt-12">
+            <Link
+              href="/galerie"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl border border-[#F4620A] text-[#F4620A] hover:bg-gradient-to-r hover:from-[#F4620A] hover:to-[#C040E0] hover:text-white hover:border-transparent transition-all duration-300 font-medium"
+            >
+              Voir toute la galerie →
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Lightbox Modal Moderne */}
+      <AnimatePresence>
+        {lightboxOpen && currentImage && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center"
+            onClick={closeLightbox}
+          >
+            {/* Bouton fermer */}
+            <button
+              onClick={closeLightbox}
+              className="absolute top-4 right-4 z-10 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-all"
+            >
+              <X size={24} />
+            </button>
+
+            {/* Navigation précédente */}
+            {currentIndex > 0 && (
+              <button
+                onClick={(e) => { e.stopPropagation(); goToPrevious(); }}
+                className="absolute left-4 top-1/2 -translate-y-1/2 z-10 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-all group"
+              >
+                <ChevronLeft size={32} className="group-hover:-translate-x-0.5 transition-transform" />
+              </button>
             )}
 
-            {/* Small Images */}
-            {smallImages.map((image) => (
-              <Link
-                key={image.id}
-                href={`/galerie/${image.id || image.slug}`}
-                className="relative group rounded-[20px] overflow-hidden h-[240px] cursor-pointer block"
+            {/* Navigation suivante */}
+            {currentIndex < filteredImages.length - 1 && (
+              <button
+                onClick={(e) => { e.stopPropagation(); goToNext(); }}
+                className="absolute right-4 top-1/2 -translate-y-1/2 z-10 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-all group"
               >
-                <div className="relative w-full h-full">
-                  <img
-                    src={getImageUrl(image.image_path || image.imageUrl)}
-                    alt={image.title}
-                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                  />
+                <ChevronRight size={32} className="group-hover:translate-x-0.5 transition-transform" />
+              </button>
+            )}
+
+            {/* Contenu principal */}
+            <div className="relative max-w-6xl max-h-[90vh] mx-auto p-4" onClick={(e) => e.stopPropagation()}>
+              {/* Image */}
+              <motion.div
+                key={currentImage.id}
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                transition={{ type: 'spring', damping: 25 }}
+                className="relative"
+              >
+                <img
+                  src={getImageUrl(currentImage.image_path || currentImage.imageUrl)}
+                  alt={currentImage.title}
+                  className="max-w-full max-h-[75vh] object-contain rounded-lg"
+                />
+                
+                {/* Indicateur de progression */}
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-sm px-3 py-1 rounded-full text-white text-sm">
+                  {currentIndex + 1} / {filteredImages.length}
                 </div>
-                <div className="absolute inset-0 bg-gradient-to-t from-[#0A0A0F]/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-                  <div className="text-center">
-                    <Maximize2 size={24} className="text-white mb-2 mx-auto" />
-                    <span className="text-white text-sm font-medium block">{image.title}</span>
-                    <span className="text-white/70 text-xs">
-                      {image.category === 'space' ? 'Espace' : image.category === 'event' ? 'Événement' : 'Communauté'}
-                    </span>
+              </motion.div>
+
+              {/* Panneau d'informations */}
+              <motion.div
+                initial={{ y: 50, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.2 }}
+                className="mt-4 bg-black/60 backdrop-blur-md rounded-xl p-4"
+              >
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      {categoryInfo && (
+                        <span className={`text-xs px-2 py-1 rounded-full bg-gradient-to-r ${categoryInfo.color} text-white`}>
+                          {categoryInfo.icon} {categoryInfo.label}
+                        </span>
+                      )}
+                      <span className="text-xs text-white/50 flex items-center gap-1">
+                        <Calendar size={12} />
+                        {new Date(currentImage.created_at).toLocaleDateString('fr-FR')}
+                      </span>
+                    </div>
+                    <h3 className="text-xl font-bold text-white">{currentImage.title}</h3>
+                    {currentImage.description && (
+                      <p className="text-white/70 text-sm mt-1 line-clamp-2">{currentImage.description}</p>
+                    )}
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setLiked(!liked)}
+                      className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-all"
+                    >
+                      <Heart size={20} className={liked ? 'fill-red-500 text-red-500' : 'text-white'} />
+                    </button>
+                    <button
+                      onClick={handleDownload}
+                      className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-all"
+                    >
+                      <Download size={20} className="text-white" />
+                    </button>
+                    <button
+                      onClick={handleShare}
+                      className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-all"
+                    >
+                      <Share2 size={20} className="text-white" />
+                    </button>
                   </div>
                 </div>
-              </Link>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-12">
-            <p className="text-[#A0A0B8]">Aucune image trouvée dans cette catégorie</p>
-          </div>
-        )}
+              </motion.div>
+            </div>
 
-        {/* CTA */}
-        <div className="text-center mt-12">
-          <Link
-            href="/galerie"
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl border border-[#F4620A] text-[#F4620A] hover:bg-gradient-to-r hover:from-[#F4620A] hover:to-[#C040E0] hover:text-white hover:border-transparent transition-all duration-300 font-medium"
-          >
-            Voir toute la galerie →
-          </Link>
-        </div>
-      </div>
-    </section>
+            {/* Indicateur de navigation clavier */}
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/40 text-xs flex gap-4">
+              <span>← → pour naviguer</span>
+              <span>ESC pour fermer</span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
