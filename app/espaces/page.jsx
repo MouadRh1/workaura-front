@@ -27,9 +27,11 @@ export default function EspacesPage() {
     try {
       const url = filter ? `/spaces?type=${filter}` : "/spaces";
       const response = await api.get(url);
+      // console.log("RAW response:", response.data); // ← ajoutez ça
       const spacesData =
         response.data.spaces?.data || response.data.spaces || [];
       setSpaces(spacesData);
+      // console.log(spacesData)
     } catch (err) {
       console.error("Erreur chargement espaces:", err);
     } finally {
@@ -37,6 +39,7 @@ export default function EspacesPage() {
       if (!initialLoadDone.current) {
         initialLoadDone.current = true;
         markDone("espaces-page");
+            console.log("markDone appelé ✅"); // ← ajoutez ça
       }
     }
   };
