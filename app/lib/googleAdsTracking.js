@@ -1,5 +1,9 @@
 const GOOGLE_ADS_TAG_ID = "AW-18472577168";
 const GOOGLE_ADS_CONVERSION = "AW-18472577168/kj43CI3-pIkdEJDRtOhE";
+const GOOGLE_ADS_CONTACT_CONVERSIONS = {
+  whatsapp: "AW-18472577168/ocWaCJafnpIdEJDRtOhE",
+  phone: "AW-18472577168/SoLdCJmfnpIdEJDRtOhE",
+};
 
 export function loadGoogleAdsTag() {
   if (typeof window === "undefined") return;
@@ -35,10 +39,11 @@ export function reportWorkauraLeadConversion() {
 }
 
 export function reportWorkauraContactClick(contactMethod, placement) {
-  if (typeof window === "undefined" || typeof window.gtag !== "function") return;
+  const conversion = GOOGLE_ADS_CONTACT_CONVERSIONS[contactMethod];
+  if (!conversion || typeof window === "undefined" || typeof window.gtag !== "function") return;
 
   window.gtag("event", "conversion", {
-    send_to: GOOGLE_ADS_CONVERSION,
+    send_to: conversion,
     value: 1,
     currency: "MAD",
     contact_method: contactMethod,
