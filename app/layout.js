@@ -6,6 +6,7 @@ import Footer from './components/ui/Footer';
 import FloatingWhatsApp from './components/ui/FloatingWhatsapp';
 import { LoadingProvider } from './components/ui/LoadingContext';
 import PageLoader from './components/ui/PageLoader';
+import GoogleAdsTracking from './components/ui/GoogleAdsTracking';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -28,6 +29,7 @@ export default function RootLayout({ children }) {
   return (
     <html lang="fr">
       <body className={inter.className}>
+        <GoogleAdsTracking />
         <AuthProvider>
           <LoadingProvider>
             <PageLoader />

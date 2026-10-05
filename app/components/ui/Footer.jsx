@@ -3,6 +3,7 @@ import { Mail, Phone, MapPin, Clock } from "lucide-react";
 import { FaFacebook, FaInstagram, FaLinkedin } from "react-icons/fa";
 import { FaXTwitter } from "react-icons/fa6";
 import Image from "next/image";
+import TrackedContactLink from "./TrackedContactLink";
 export default function Footer() {
   const socialLinks = [
     {
@@ -155,12 +156,14 @@ export default function Footer() {
               </li>
               <li className="flex items-center justify-center md:justify-start gap-2 text-[#A0A0B8] text-sm">
                 <Phone size={14} className="text-[#F4620A] flex-shrink-0" />
-                <a
+                <TrackedContactLink
                   href="tel:+212665038838"
                   className="hover:text-white transition-colors"
+                  contactMethod="phone"
+                  placement="footer"
                 >
                   +212 6 65 03 88 38
-                </a>
+                </TrackedContactLink>
               </li>
               <li className="flex items-center justify-center md:justify-start gap-2 text-[#A0A0B8] text-sm">
                 <Mail size={14} className="text-[#F4620A] flex-shrink-0" />

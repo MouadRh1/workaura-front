@@ -15,6 +15,10 @@ import {
   FileText,
 } from "lucide-react";
 import api from "../lib/api";
+import {
+  reportWorkauraContactClick,
+  reportWorkauraLeadConversion,
+} from "../lib/googleAdsTracking";
 
 function Pill({ icon: Icon, children }) {
   return (
@@ -91,6 +95,7 @@ export default function ContactPage() {
       });
 
       setStatus("success");
+      reportWorkauraLeadConversion();
       setFormData({
         nom: "",
         prenom: "",
@@ -157,7 +162,8 @@ export default function ContactPage() {
 
             <InfoCard icon={Phone} title="Téléphone" variant="purple">
               <a
-                href="tel:+212600000000"
+                href="tel:+212665038838"
+                onClick={() => reportWorkauraContactClick("phone", "contact_page")}
                 className="hover:text-[#F4620A] transition-colors"
               >
                 +212 6 65 03 88 38
@@ -479,4 +485,4 @@ export default function ContactPage() {
       </section>
     </div>
   );
-} 
+}

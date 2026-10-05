@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { FaWhatsapp } from 'react-icons/fa';
 import { motion, AnimatePresence } from 'framer-motion';
+import { reportWorkauraContactClick } from '../../lib/googleAdsTracking';
 
 export default function FloatingWhatsApp() {
 //   const [isVisible, setIsVisible] = useState(false);
@@ -26,6 +27,7 @@ export default function FloatingWhatsApp() {
       {/* {isVisible && ( */}
         <motion.a
           href={whatsappUrl}
+          onClick={() => reportWorkauraContactClick('whatsapp', 'floating_button')}
           target="_blank"
           rel="noopener noreferrer"
           initial={{ opacity: 0, scale: 0, x: 100 }}

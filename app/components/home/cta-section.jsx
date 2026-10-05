@@ -6,6 +6,7 @@ import { motion, useInView } from 'framer-motion'
 import { useRef } from 'react'
 import { MdOutlineEventAvailable } from 'react-icons/md'
 import { FaWhatsapp } from 'react-icons/fa'
+import { reportWorkauraContactClick } from '../../lib/googleAdsTracking'
 
 export default function CTASection() {
   const ref = useRef(null)
@@ -87,6 +88,7 @@ export default function CTASection() {
           
           <Link 
             href="https://wa.me/212665038838?text=Bonjour%2C%20je%20suis%20int%C3%A9ress%C3%A9%20par%20vos%20espaces%20de%20coworking"
+            onClick={() => reportWorkauraContactClick('whatsapp', 'home_cta')}
             target="_blank"
             rel="noopener noreferrer"
           >

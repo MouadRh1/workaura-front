@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import api from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
+import { reportWorkauraLeadConversion } from "../../lib/googleAdsTracking";
 
 // ─── Prix fixes pour les salles (réunion & formation) ────────────────────────
 // Ces espaces n'ont PAS de pricing dans la BDD — les prix sont calculés ici.
@@ -225,6 +226,7 @@ export default function ReservationModal({
       };
       const { data } = await api.post("/bookings", payload);
       setBookingResult(data);
+      reportWorkauraLeadConversion();
       setStep(3);
     } catch (err) {
       if (err.response?.data?.errors) setErrors(err.response.data.errors);
